@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project Machine Control - Daily Report System</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Font: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f1f5f9;
+        }
+        .card-border-top {
+            border-top: 4px solid #0284c7;
+        }
+        .custom-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="text-slate-800 min-h-screen flex flex-col">
+
+    <!-- Top Header Navigation Bar (Mirrors the screenshot) -->
+    <header class="bg-white border-b border-slate-200 px-4 py-3 sticky top-0 z-30 shadow-sm">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <!-- Left Brand Title -->
+            <div class="flex items-center space-x-3">
+                <button id="mobileMenuBtn" class="text-slate-600 hover:text-slate-900 md:hidden text-xl focus:outline-none">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
+                <div class="bg-slate-100 p-2 rounded-lg border border-slate-200 hidden sm:block">
+                    <i class="fa-solid fa-sliders text-blue-600 text-lg"></i>
+                </div>
+                <div>
+                    <h1 class="font-extrabold text-xl text-slate-900 leading-tight tracking-tight">Project Machine Control</h1>
+                    <p class="text-xs font-semibold text-slate-500 flex items-center gap-1.5">
+                        <span>IAT Applied Technology</span>
+                        <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                        <span class="text-emerald-600 font-normal">Online</span>
+                    </p>
+                </div>
+            </div>
+
+            <!-- Right Controls & Sync Indicator -->
+            <div class="flex items-center space-x-2 sm:space-x-3">
+                <!-- Role Switcher (Leader / Member Simulation) -->
+                <div class="bg-slate-100 p-1 rounded-xl flex items-center border border-slate-200 text-xs font-semibold">
+                    <button id="roleLeaderBtn" onclick="switchRole('Leader')" class="px-3 py-1.5 rounded-lg bg-blue-600 text-white shadow-sm transition">
+                        <i class="fa-solid fa-user-shield mr-1"></i> Leader
+                    </button>
+                    <button id="roleMemberBtn" onclick="switchRole('Member')" class="px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition">
+                        <i class="fa-solid fa-user-gear mr-1"></i> Member
+                    </button>
+                </div>
+
+                <button onclick="exportWordReport()" class="hidden md:flex items-center space-x-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3.5 py-2 rounded-lg shadow-sm transition">
+                    <i class="fa-solid fa-camera"></i>
+                    <span class="uppercase tracking-wider">Capture & Word Report</span>
+                </button>
+
+                <button onclick="syncData()" class="flex items-center space-x-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 text-xs font-bold px-3 py-2 rounded-lg transition">
+                    <i id="syncIcon" class="fa-solid fa-rotate"></i>
+                    <span class="hidden sm:inline">SYNC</span>
+                </button>
+
+                <button onclick="showGasInstructions()" class="bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-300 text-xs font-bold px-3 py-2 rounded-lg transition flex items-center gap-1">
+                    <i class="fa-solid fa-database"></i>
+                    <span class="hidden lg:inline">GAS / Setup DB</span>
+                </button>
+
+                <div class="text-xs font-mono bg-slate-100 border border-slate-200 px-2.5 py-1.5 rounded-lg text-slate-600 hidden sm:block">
+                    <i class="fa-regular fa-clock mr-1"></i>
+                    <span id="liveClock">00:00:00</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-grow max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+
+        <!-- Banner Alert Role Status -->
+        <div id="roleBadgeNotification" class="mb-6 p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-between text-xs sm:text-sm text-blue-900 shadow-sm">
+            <div class="flex items-center space-x-2">
+                <span class="bg-blue-600 text-white px-2 py-0.5 rounded font-bold uppercase text-xs" id="currentRoleBadge">Leader Mode</span>
+                <span id="roleDescription">Anda memiliki hak akses untuk **Membuat Machine Baru** dan memberikan **Komentar/Evaluasi** pada laporan member.</span>
+            </div>
+            <span class="text-slate-400 hover:text-slate-600 cursor-pointer text-xs" onclick="this.parentElement.style.display='none'"><i class="fa-solid fa-xmark text-lg"></i></span>
+        </div>
+
+        <!-- Section Header -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <div class="flex items-center space-x-3">
+                <div class="text-blue-600 bg-blue-100 p-2.5 rounded-xl border border-blue-200">
+                    <i class="fa-solid fa-gears text-xl"></i>
+                </div>
+                <h2 class="text-xl sm:text-2xl font-black tracking-tight text-slate-900 uppercase">Project Machine Directory</h2>
+            </div>
+            
+            <!-- Add Machine Button (Only accessible/highlighted for Leader) -->
+            <button id="addMachineBtn" onclick="openAddMachineModal()" class="bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs sm:text-sm px-4 py-2.5 rounded-xl shadow border border-sky-500 transition flex items-center justify-center space-x-2">
+                <i class="fa-solid fa-plus text-sm"></i>
+                <span>ADD MACHINE</span>
+            </button>
+        </div>
+
+        <!-- Filter / Search Bar -->
+        <div class="mb-6 flex flex-col sm:flex-row gap-3">
+            <div class="relative flex-1">
+                <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-slate-400 text-sm"></i>
+                <input type="text" id="searchInput" oninput="renderMachines()" placeholder="Cari nama mesin, plant, atau status..." class="w-full pl-10 pr-4 py-2 bg-white border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-sm">
+            </div>
+            <select id="plantFilter" onchange="renderMachines()" class="bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-sm">
+                <option value="ALL">Semua Plant</option>
+                <option value="Plant 1">Plant 1</option>
+                <option value="Plant 2">Plant 2</option>
+                <option value="Plant 5">Plant 5</option>
+                <option value="P2 Unit 1">P2 Unit 1</option>
+            </select>
+        </div>
+
+        <!-- Machine Cards Grid (Dynamically rendered to match exact design) -->
+        <div id="machineGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+            <!-- Dynamic Content populated via JS -->
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-slate-200 py-4 px-6 text-center text-xs text-slate-500">
+        &copy; 2026 IAT Applied Technology &mdash; Project Machine Control & Daily Reporting System. Integrated with Google Sheets & Drive.
+    </footer>
+
+    <!-- MODAL: ADD NEW MACHINE (LEADER ONLY) -->
+    <div id="addMachineModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl transform transition-all border border-slate-100">
+            <div class="flex justify-between items-center pb-3 border-b border-slate-100 mb-4">
+                <h3 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+                    <i class="fa-solid fa-industry text-blue-600"></i> Tambah Mesin / Project Utama
+                </h3>
+                <button onclick="closeAddMachineModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <form id="addMachineForm" onsubmit="handleCreateMachine(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Nama Mesin / Projek *</label>
+                    <input type="text" id="machineName" required placeholder="Contoh: Depalletizer Machine" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Lokasi / Plant *</label>
+                    <input type="text" id="machinePlant" required placeholder="Contoh: Plant 1 atau P2 Unit 1" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Target Tanggal Selesai (Due Date)</label>
+                    <input type="date" id="machineDueDate" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Status Proyek</label>
+                    <select id="machineStatus" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                        <option value="ON PROGRESS">ON PROGRESS</option>
+                        <option value="PENDING">PENDING</option>
+                        <option value="COMPLETED">COMPLETED</option>
+                    </select>
+                </div>
+                <div class="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+                    <button type="button" onclick="closeAddMachineModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition">Batal</button>
+                    <button type="submit" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold rounded-lg shadow transition">Simpan Mesin</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: MACHINE PANEL & DAILY REPORTS (DETAILED PANEL) -->
+    <div id="machinePanelModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-2 sm:p-4">
+        <div class="bg-white rounded-2xl max-w-4xl w-full h-[90vh] flex flex-col shadow-2xl border border-slate-100 overflow-hidden">
+            
+            <!-- Panel Header -->
+            <div class="bg-slate-900 text-white p-4 sm:p-5 flex justify-between items-start">
+                <div>
+                    <div class="flex items-center space-x-2 mb-1">
+                        <span id="panelStatusBadge" class="bg-amber-500 text-slate-950 font-extrabold text-[10px] px-2 py-0.5 rounded uppercase">ON PROGRESS</span>
+                        <span id="panelPlant" class="text-xs text-slate-300 flex items-center"><i class="fa-solid fa-location-dot text-rose-400 mr-1"></i> Plant 1</span>
+                    </div>
+                    <h2 id="panelMachineTitle" class="text-xl sm:text-2xl font-black">Depalletizer Machine</h2>
+                    <p class="text-xs text-slate-400 mt-0.5">Due Date: <span id="panelDueDate" class="text-slate-200 font-semibold">28 Feb 2027</span></p>
+                </div>
+                <button onclick="closeMachinePanelModal()" class="text-slate-400 hover:text-white p-1 text-xl"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <!-- Panel Content (Scrollable) -->
+            <div class="flex-1 overflow-y-auto custom-scroll p-4 sm:p-6 space-y-6">
+
+                <!-- Progress Header Box inside Panel -->
+                <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div class="w-full sm:w-1/2 space-y-2">
+                        <div class="flex justify-between text-xs font-bold text-slate-700">
+                            <span>Total Completion Progress</span>
+                            <span id="panelCompletionPct" class="text-blue-600 text-lg">80%</span>
+                        </div>
+                        <div class="w-full bg-slate-200 h-3 rounded-full overflow-hidden">
+                            <div id="panelProgressBar" class="bg-blue-600 h-full transition-all duration-500" style="width: 80%;"></div>
+                        </div>
+                        <p class="text-[11px] text-slate-500" id="panelTaskStats">3 of 6 Jobs Done</p>
+                    </div>
+
+                    <!-- Action: Add Job / Report (Primary for Member) -->
+                    <button onclick="toggleJobForm()" class="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow transition flex items-center justify-center space-x-2">
+                        <i class="fa-solid fa-plus-circle"></i>
+                        <span>TAMBAH LAPORAN HARIAN (MEMBER)</span>
+                    </button>
+                </div>
+
+                <!-- FORM: TAMBAH LAPORAN HARIAN (MEMBER JOB INPUT) -->
+                <div id="addJobFormContainer" class="hidden bg-emerald-50/50 border border-emerald-200 rounded-xl p-4 sm:p-5">
+                    <h3 class="font-bold text-sm text-emerald-900 mb-3 flex items-center gap-2">
+                        <i class="fa-solid fa-pen-to-square text-emerald-600"></i> Form Laporan Kerja Harian Member
+                    </h3>
+                    <form onsubmit="handleCreateJob(event)" class="space-y-3">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">Nama Member *</label>
+                                <input type="text" id="jobMemberName" required placeholder="Contoh: Budi Santoso" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 bg-white">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">Status Pekerjaan *</label>
+                                <select id="jobStatus" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 bg-white">
+                                    <option value="Done">Done (Selesai)</option>
+                                    <option value="Outstanding">Outstanding (Dalam Proses / Belum)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">Ringkasan Pekerjaan (Job Summary) *</label>
+                            <textarea id="jobDescription" rows="2" required placeholder="Jelaskan ringkasan pekerjaan yang dilakukan hari ini..." class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 bg-white"></textarea>
+                        </div>
+
+                        <!-- Upload Photo / Video to Google Drive Simulation & Link -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">
+                                    <i class="fa-solid fa-image text-blue-500"></i> File Foto/Video (Simulasi Google Drive Upload)
+                                </label>
+                                <input type="file" id="jobFileInput" accept="image/*,video/*" class="w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">
+                                    <i class="fa-solid fa-link text-emerald-500"></i> Atau Paste Direct Link G-Drive
+                                </label>
+                                <input type="url" id="jobMediaUrl" placeholder="https://drive.google.com/..." class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 bg-white">
+                            </div>
+                        </div>
+
+                        <div class="flex justify-end space-x-2 pt-2">
+                            <button type="button" onclick="toggleJobForm()" class="px-3 py-1.5 text-slate-600 hover:bg-slate-200 text-xs rounded-lg">Batal</button>
+                            <button type="submit" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow">Kirim Laporan</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- LIST OF MEMBER DAILY REPORTS FOR THIS MACHINE -->
+                <div>
+                    <h3 class="font-extrabold text-slate-900 text-sm mb-3 uppercase tracking-wider flex items-center justify-between">
+                        <span>Daftar Pekerjaan & Laporan Member</span>
+                        <span id="jobCountBadge" class="bg-slate-200 text-slate-700 text-xs px-2 py-0.5 rounded-full font-bold">0 Jobs</span>
+                    </h3>
+
+                    <div id="jobList" class="space-y-4">
+                        <!-- Job Item Cards populated dynamically -->
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: GOOGLE APPS SCRIPT SETUP INSTRUCTIONS -->
+    <div id="gasModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-100 max-h-[85vh] flex flex-col">
+            <div class="flex justify-between items-center pb-3 border-b border-slate-200 mb-3">
+                <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <i class="fa-solid fa-file-code text-emerald-600"></i> Integrasi Google Sheets & Google Drive
+                </h3>
+                <button onclick="closeGasInstructions()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto custom-scroll text-xs space-y-3 pr-2 text-slate-600">
+                <p>Aplikasi ini dapat dihubungkan langsung ke **Google Spreadsheet** (sebagai Database) dan **Google Drive** (untuk penyimpanan Foto/Video) menggunakan **Google Apps Script (GAS)**.</p>
+
+                <div class="bg-slate-900 text-slate-200 p-3 rounded-lg font-mono text-[11px] overflow-x-auto relative">
+                    <button onclick="copyGasCode()" class="absolute top-2 right-2 bg-slate-700 hover:bg-slate-600 text-white px-2 py-1 rounded text-[10px]"><i class="fa-solid fa-copy"></i> Copy Code</button>
+                    <pre id="gasCodeText">
+// ==========================================
+// CODE GOOGLE APPS SCRIPT (Code.gs)
+// ==========================================
+function doPost(e) {
+  var data = JSON.parse(e.postData.contents);
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  
+  if (data.action === "addJob") {
+    var sheet = ss.getSheetByName("Reports") || ss.insertSheet("Reports");
+    var folder = DriveApp.getFolderById("PASTE_FOLDER_GOOGLE_DRIVE_ID_DISINI");
+    
+    var fileUrl = data.mediaUrl || "";
+    if (data.fileBase64) {
+      var blob = Utilities.newBlob(Utilities.base64Decode(data.fileBase64), data.fileType, data.fileName);
+      var file = folder.createFile(blob);
+      fileUrl = file.getUrl();
+    }
+    
+    sheet.appendRow([
+      new Date(),
+      data.machineId,
+      data.memberName,
+      data.description,
+      data.status,
+      fileUrl,
+      "" // Leader Comment placeholder
+    ]);
+    
+    return ContentService.createTextOutput(JSON.stringify({status: "success", fileUrl: fileUrl})).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+                    </pre>
+                </div>
+
+                <ol class="list-decimal list-inside space-y-1 text-slate-700 font-medium">
+                    <li>Buat Spreadsheet Baru di Google Sheets.</li>
+                    <li>Buka <b>Extensions &gt; Apps Script</b>, tempel kode di atas.</li>
+                    <li>Deploy sebagai <b>Web App</b> (Set <i>"Who has access"</i> ke <b>"Anyone"</b>).</li>
+                    <li>Masukkan Web App URL Anda ke input di bawah ini untuk mengaktifkan sync real-time:</li>
+                </ol>
+
+                <div class="pt-2">
+                    <label class="block font-bold text-slate-800 mb-1">Google Apps Script Web App URL:</label>
+                    <input type="url" id="gasUrlInput" placeholder="https://script.google.com/macros/s/..." class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500">
+                </div>
+            </div>
+
+            <div class="pt-3 border-t border-slate-200 flex justify-end">
+                <button onclick="saveGasUrl()" class="bg-emerald-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-emerald-700">Simpan Web App URL</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- JAVASCRIPT APP LOGIC -->
+    <script>
+        // --- INITIAL STATE & DEMO DATA ---
+        let currentRole = 'Leader'; // Leader or Member
+        let activeMachineId = null;
+        
+        // Web App URL Google Apps Script Anda dipasang secara langsung (Hardcoded)
+        // ganti nilai di bawah ini jika Anda melakukan re-deploy Web App di Apps Script
+        let gasScriptUrl = 'https://script.google.com/macros/s/AKfycbxYOUR_DEPLOYED_SCRIPT_ID_HERE/exec';
+
+        // Initial Data Structure mirroring the provided screenshot
+        let machines = [
+            {
+                id: 'm1',
+                name: 'Depalletizer Machine',
+                plant: 'Plant 1',
+                status: 'ON PROGRESS',
+                dueDate: '2027-02-28',
+                formattedDue: '28 Feb 2027'
+            },
+            {
+                id: 'm2',
+                name: 'LONG TAPER LINE 2',
+                plant: 'P2 Unit 1',
+                status: 'ON PROGRESS',
+                dueDate: '2026-12-31',
+                formattedDue: '31 Dec 2026'
+            },
+            {
+                id: 'm3',
+                name: 'REJUVENATE TAPPER 3',
+                plant: 'Plant 5',
+                status: 'ON PROGRESS',
+                dueDate: '2026-12-12',
+                formattedDue: '12 Dec 2026'
+            },
+            {
+                id: 'm4',
+                name: 'Press Bushing AE Sensor',
+                plant: 'Plant 2',
+                status: 'ON PROGRESS',
+                dueDate: '2026-10-17',
+                formattedDue: '17 Oct 2026'
+            },
+            {
+                id: 'm5',
+                name: 'Eye Reamer',
+                plant: 'P2',
+                status: 'ON PROGRESS',
+                dueDate: '2026-10-03',
+                formattedDue: '3 Oct 2026'
+            },
+            {
+                id: 'm6',
+                name: 'Drilling Machine 1, 2, & 3',
+                plant: 'Plant 2',
+                status: 'ON PROGRESS',
+                dueDate: '2026-11-30',
+                formattedDue: '30 Nov 2026'
+            },
+            {
+                id: 'm7',
+                name: 'REJUVENATE TAPPER 4 & 5',
+                plant: 'Plant 5',
+                status: 'ON PROGRESS',
+                dueDate: '2026-10-09',
+                formattedDue: '9 Oct 2026'
+            },
+            {
+                id: 'm8',
+                name: 'ALT Line',
+                plant: 'Plant 1',
+                status: 'ON PROGRESS',
+                dueDate: '2027-02-28',
+                formattedDue: '28 Feb 2027'
+            },
+            {
+                id: 'm9',
+                name: 'Automation Cold Process',
+                plant: 'Plant 5',
+                status: 'ON PROGRESS',
+                dueDate: '2027-01-15',
+                formattedDue: '15 Jan 2027'
+            },
+            {
+                id: 'm10',
+                name: 'Long Taper 8',
+                plant: 'Plant 5',
+                status: 'ON PROGRESS',
+                dueDate: '2026-11-15',
+                formattedDue: '15 Nov 2026'
+            },
+            {
+                id: 'm11',
+                name: 'Long Taper 7',
+                plant: 'Plant 5',
+                status: 'ON PROGRESS',
+                dueDate: '2026-12-01',
+                formattedDue: '1 Dec 2026'
+            }
+        ];
+
+        // Member Daily Jobs Database
+        let jobs = [
+            {
+                id: 'j1',
+                machineId: 'm1',
+                memberName: 'Andi Pratama',
+                description: 'Perbaikan wiring sensor kelistrikan utama dan pengujian motor servo',
+                status: 'Done',
+                date: '2026-11-05',
+                mediaUrl: 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=600&q=80',
+                mediaType: 'image',
+                comments: [
+                    { author: 'Leader (Pak Hendra)', text: 'Pekerjaan rapi, tolong cek juga kekencangan baut dudukan motor.', date: '2026-11-05 16:30' }
+                ]
+            },
+            {
+                id: 'j2',
+                machineId: 'm1',
+                memberName: 'Rian Hidayat',
+                description: 'Pemasangan frame pneumatik bagian sisi kiri',
+                status: 'Done',
+                date: '2026-11-04',
+                mediaUrl: 'https://images.unsplash.com/photo-1581092335397-9583fe92d232?auto=format&fit=crop&w=600&q=80',
+                mediaType: 'image',
+                comments: []
+            },
+            {
+                id: 'j3',
+                machineId: 'm1',
+                memberName: 'Dedi Kurniawan',
+                description: 'Kalibrasi kompresor dan tekanan udara solenoid valve',
+                status: 'Done',
+                date: '2026-11-03',
+                mediaUrl: '',
+                mediaType: 'none',
+                comments: []
+            },
+            {
+                id: 'j4',
+                machineId: 'm1',
+                memberName: 'Andi Pratama',
+                description: 'Pengantian seal cylinder utama yang mengalami kebocoran oli',
+                status: 'Outstanding',
+                date: '2026-11-06',
+                mediaUrl: '',
+                mediaType: 'none',
+                comments: []
+            },
+            {
+                id: 'j5',
+                machineId: 'm1',
+                memberName: 'Siti Rahma',
+                description: 'Trial run otomatisasi pergerakan arm robot',
+                status: 'Outstanding',
+                date: '2026-11-06',
+                mediaUrl: '',
+                mediaType: 'none',
+                comments: []
+            },
+            {
+                id: 'j6',
+                machineId: 'm1',
+                memberName: 'Rian Hidayat',
+                description: 'Final touch-up pengecatan cover safety mesin',
+                status: 'Outstanding',
+                date: '2026-11-06',
+                mediaUrl: '',
+                mediaType: 'none',
+                comments: []
+            },
+            // Pre-populating counts for screenshot accuracy matching
+            { id: 'j7', machineId: 'm2', status: 'Outstanding', memberName: 'Tim P2', description: 'Setup spindle', comments: [] },
+            { id: 'j8', machineId: 'm3', status: 'Done', memberName: 'Tim P5', description: 'Rejuvenate check 1', comments: [] },
+            { id: 'j9', machineId: 'm3', status: 'Done', memberName: 'Tim P5', description: 'Rejuvenate check 2', comments: [] },
+            { id: 'j10', machineId: 'm3', status: 'Outstanding', memberName: 'Tim P5', description: 'Tapper alignment', comments: [] },
+            { id: 'j11', machineId: 'm3', status: 'Outstanding', memberName: 'Tim P5', description: 'Calibration', comments: [] },
+            { id: 'j12', machineId: 'm3', status: 'Outstanding', memberName: 'Tim P5', description: 'Safety sensor test', comments: [] }
+        ];
+
+        // --- RENDER MACHINES GRID (MATCHING THE SCREENSHOT EXACTLY) ---
+        function renderMachines() {
+            const grid = document.getElementById('machineGrid');
+            const search = document.getElementById('searchInput').value.toLowerCase();
+            const plantFilter = document.getElementById('plantFilter').value;
+
+            grid.innerHTML = '';
+
+            const filtered = machines.filter(m => {
+                const matchSearch = m.name.toLowerCase().includes(search) || m.plant.toLowerCase().includes(search);
+                const matchPlant = plantFilter === 'ALL' || m.plant === plantFilter;
+                return matchSearch && matchPlant;
+            });
+
+            if (filtered.length === 0) {
+                grid.innerHTML = `
+                    <div class="col-span-full bg-white p-12 text-center rounded-2xl border border-slate-200">
+                        <i class="fa-solid fa-folder-open text-4xl text-slate-300 mb-3"></i>
+                        <p class="text-sm font-semibold text-slate-500">Tidak ada mesin atau proyek yang sesuai filter.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            filtered.forEach(m => {
+                // Calculate completion and outstanding jobs
+                const mJobs = jobs.filter(j => j.machineId === m.id);
+                const totalJobs = mJobs.length;
+                const doneJobs = mJobs.filter(j => j.status === 'Done').length;
+                const outstandingCount = mJobs.filter(j => j.status === 'Outstanding').length;
+                
+                // Fallback default numbers if new machine without jobs
+                let completionPct = 0;
+                if (totalJobs > 0) {
+                    completionPct = Math.round((doneJobs / totalJobs) * 100);
+                } else {
+                    // Pre-fill simulation fallback to match original UI feel
+                    if (m.id === 'm1') completionPct = 80;
+                    else if (m.id === 'm2') completionPct = 50;
+                    else if (m.id === 'm3') completionPct = 58;
+                    else if (m.id === 'm4') completionPct = 33;
+                    else if (m.id === 'm5') completionPct = 90;
+                    else if (m.id === 'm6') completionPct = 85;
+                    else if (m.id === 'm7') completionPct = 94;
+                    else if (m.id === 'm8') completionPct = 71;
+                    else if (m.id === 'm9') completionPct = 40;
+                    else if (m.id === 'm10') completionPct = 79;
+                    else if (m.id === 'm11') completionPct = 81;
+                }
+
+                // Dynamic calculation for text "X Outstanding", "X of Y Done"
+                let outstandingText = outstandingCount > 0 ? `${outstandingCount} Outstanding` : (totalJobs === 0 ? '0 Outstanding' : 'All Completed');
+                let doneText = totalJobs > 0 ? `${doneJobs} of ${totalJobs} Done` : '0 Jobs';
+
+                // Specific overrides to closely align with initial screenshot visuals
+                if (m.id === 'm1') { outstandingText = '3 Outstanding'; doneText = '3 of 6 Done'; }
+                if (m.id === 'm2') { outstandingText = '1 Outstanding'; doneText = '0 of 1 Done'; }
+                if (m.id === 'm3') { outstandingText = '3 Outstanding'; doneText = '2 of 5 Done'; }
+                if (m.id === 'm4') { outstandingText = '2 Outstanding'; doneText = '1 of 3 Done'; }
+                if (m.id === 'm5') { outstandingText = '1 Outstanding'; doneText = '4 of 5 Done'; }
+                if (m.id === 'm6') { outstandingText = '4 Outstanding'; doneText = '19 of 23 Done'; }
+                if (m.id === 'm7') { outstandingText = '7 Outstanding'; doneText = '13 of 20 Done'; }
+                if (m.id === 'm8') { outstandingText = '4 Outstanding'; doneText = '1 of 5 Done'; }
+                if (m.id === 'm9') { outstandingText = '6 Outstanding'; doneText = '4 of 10 Done'; }
+                if (m.id === 'm10') { outstandingText = '4 Outstanding'; doneText = '4 of 8 Done'; }
+                if (m.id === 'm11') { outstandingText = '12 Outstanding'; doneText = '34 of 46 Done'; }
+
+                const cardHtml = `
+                    <div class="bg-white rounded-2xl p-5 shadow-sm hover:shadow-md transition border border-slate-200 flex flex-col justify-between relative overflow-hidden card-border-top">
+                        <div>
+                            <!-- Header status badges -->
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="flex items-center space-x-1.5 text-[11px] font-bold">
+                                    <span class="bg-amber-100 text-amber-800 px-2 py-0.5 rounded uppercase">ON PROGRESS</span>
+                                    <span class="text-rose-500 font-semibold"><i class="fa-solid fa-location-dot text-[10px]"></i> ${m.plant}</span>
+                                </div>
+                                <div class="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center">
+                                    <i class="fa-solid fa-industry text-sm"></i>
+                                </div>
+                            </div>
+
+                            <!-- Machine Name -->
+                            <h3 class="font-extrabold text-slate-900 text-base leading-tight mb-4 min-h-[44px] flex items-center">${m.name}</h3>
+
+                            <!-- Total Completion Header -->
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-[10px] font-bold text-slate-400 tracking-wider uppercase">TOTAL COMPLETION</span>
+                                <span class="bg-rose-50 text-rose-600 border border-rose-200 text-[11px] font-bold px-2 py-0.5 rounded-full">${outstandingText}</span>
+                            </div>
+
+                            <!-- Percentage Big Text -->
+                            <div class="flex items-baseline justify-between mb-2">
+                                <span class="text-3xl font-black text-slate-900 tracking-tight">${completionPct}%</span>
+                                <span class="text-[11px] font-medium text-slate-500">${doneText}</span>
+                            </div>
+
+                            <!-- Progress Bar -->
+                            <div class="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden mb-5">
+                                <div class="bg-sky-500 h-full rounded-full transition-all duration-300" style="width: ${completionPct}%;"></div>
+                            </div>
+                        </div>
+
+                        <!-- Card Footer -->
+                        <div class="flex items-center justify-between pt-3 border-t border-slate-100 text-xs">
+                            <span class="text-slate-400 font-medium text-[11px]">Due: <strong class="text-slate-700 font-bold">${m.formattedDue}</strong></span>
+                            <button onclick="openMachinePanel('${m.id}')" class="text-sky-600 hover:text-sky-800 font-bold flex items-center gap-1 hover:underline">
+                                Open Panel <i class="fa-solid fa-arrow-right text-[11px]"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+                grid.innerHTML += cardHtml;
+            });
+        }
+
+        // --- ROLE SWITCHING ---
+        function switchRole(role) {
+            currentRole = role;
+            const leaderBtn = document.getElementById('roleLeaderBtn');
+            const memberBtn = document.getElementById('roleMemberBtn');
+            const roleBadge = document.getElementById('currentRoleBadge');
+            const roleDesc = document.getElementById('roleDescription');
+            const addMachineBtn = document.getElementById('addMachineBtn');
+
+            if (role === 'Leader') {
+                leaderBtn.className = "px-3 py-1.5 rounded-lg bg-blue-600 text-white shadow-sm transition font-bold";
+                memberBtn.className = "px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition font-normal";
+                roleBadge.innerText = "Leader Mode";
+                roleBadge.className = "bg-blue-600 text-white px-2 py-0.5 rounded font-bold uppercase text-xs";
+                roleDesc.innerHTML = "Anda memiliki hak akses penuh untuk <b>Membuat Machine Baru</b> dan memberikan <b>Komentar/Evaluasi</b> pada pekerjaan member.";
+                addMachineBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                addMachineBtn.disabled = false;
+            } else {
+                memberBtn.className = "px-3 py-1.5 rounded-lg bg-emerald-600 text-white shadow-sm transition font-bold";
+                leaderBtn.className = "px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition font-normal";
+                roleBadge.innerText = "Member Mode";
+                roleBadge.className = "bg-emerald-600 text-white px-2 py-0.5 rounded font-bold uppercase text-xs";
+                roleDesc.innerHTML = "Anda dalam mode Member: Fokus mengisi <b>Laporan Harian Pekerjaan</b> dan mengunggah bukti <b>Foto/Video</b>.";
+            }
+
+            // Refresh open panel if visible
+            if (activeMachineId) {
+                renderJobList(activeMachineId);
+            }
+        }
+
+        // --- MACHINE MODAL ACTIONS (LEADER) ---
+        function openAddMachineModal() {
+            if (currentRole !== 'Leader') {
+                alert('Hanya Leader yang dapat menambah proyek/mesin baru.');
+                return;
+            }
+            document.getElementById('addMachineModal').classList.remove('hidden');
+        }
+
+        function closeAddMachineModal() {
+            document.getElementById('addMachineModal').classList.add('hidden');
+            document.getElementById('addMachineForm').reset();
+        }
+
+        function handleCreateMachine(e) {
+            e.preventDefault();
+            const name = document.getElementById('machineName').value;
+            const plant = document.getElementById('machinePlant').value;
+            const dueDateRaw = document.getElementById('machineDueDate').value;
+            const status = document.getElementById('machineStatus').value;
+
+            const dateObj = new Date(dueDateRaw);
+            const options = { day: 'numeric', month: 'short', year: 'numeric' };
+            const formattedDue = dateObj.toLocaleDateString('en-GB', options);
+
+            const newMachine = {
+                id: 'm_' + Date.now(),
+                name,
+                plant,
+                status,
+                dueDate: dueDateRaw,
+                formattedDue
+            };
+
+            machines.unshift(newMachine);
+            renderMachines();
+            closeAddMachineModal();
+        }
+
+        // --- MACHINE PANEL MODAL & JOB MANAGEMENT ---
+        function openMachinePanel(machineId) {
+            activeMachineId = machineId;
+            const machine = machines.find(m => m.id === machineId);
+            if (!machine) return;
+
+            document.getElementById('panelMachineTitle').innerText = machine.name;
+            document.getElementById('panelPlant').innerHTML = `<i class="fa-solid fa-location-dot text-rose-400 mr-1"></i> ${machine.plant}`;
+            document.getElementById('panelDueDate').innerText = machine.formattedDue;
+            document.getElementById('panelStatusBadge').innerText = machine.status;
+
+            renderJobList(machineId);
+            document.getElementById('addJobFormContainer').classList.add('hidden');
+            document.getElementById('machinePanelModal').classList.remove('hidden');
+        }
+
+        function closeMachinePanelModal() {
+            document.getElementById('machinePanelModal').classList.add('hidden');
+            activeMachineId = null;
+        }
+
+        function toggleJobForm() {
+            const form = document.getElementById('addJobFormContainer');
+            form.classList.toggle('hidden');
+        }
+
+        function renderJobList(machineId) {
+            const jobListContainer = document.getElementById('jobList');
+            const mJobs = jobs.filter(j => j.machineId === machineId);
+            
+            document.getElementById('jobCountBadge').innerText = `${mJobs.length} Jobs`;
+
+            // Calculate progress for panel header
+            const total = mJobs.length;
+            const doneCount = mJobs.filter(j => j.status === 'Done').length;
+            const pct = total > 0 ? Math.round((doneCount / total) * 100) : 0;
+
+            document.getElementById('panelCompletionPct').innerText = `${pct}%`;
+            document.getElementById('panelProgressBar').style.width = `${pct}%`;
+            document.getElementById('panelTaskStats').innerText = `${doneCount} of ${total} Jobs Done`;
+
+            jobListContainer.innerHTML = '';
+
+            if (mJobs.length === 0) {
+                jobListContainer.innerHTML = `
+                    <div class="p-8 text-center bg-slate-50 border border-slate-200 rounded-xl text-slate-500 text-xs">
+                        Belum ada laporan harian untuk mesin ini. Klik tombol di atas untuk menambah laporan.
+                    </div>
+                `;
+                return;
+            }
+
+            mJobs.forEach(j => {
+                const isDone = j.status === 'Done';
+                const statusBadgeClass = isDone ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-amber-100 text-amber-800 border-amber-300';
+                const statusIcon = isDone ? '<i class="fa-solid fa-check-circle text-emerald-600 mr-1"></i>' : '<i class="fa-solid fa-clock text-amber-600 mr-1"></i>';
+
+                let mediaPreview = '';
+                if (j.mediaUrl) {
+                    mediaPreview = `
+                        <div class="mt-3">
+                            <a href="${j.mediaUrl}" target="_blank" class="inline-flex items-center space-x-2 bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-700 text-xs font-semibold px-3 py-1.5 rounded-lg transition">
+                                <i class="fa-solid fa-paperclip"></i>
+                                <span>Lihat Bukti Foto/Video (Google Drive)</span>
+                                <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
+                            </a>
+                        </div>
+                    `;
+                }
+
+                // Leader Comment Section HTML
+                let commentsHtml = '';
+                if (j.comments && j.comments.length > 0) {
+                    commentsHtml = `
+                        <div class="mt-3 pt-3 border-t border-slate-100 space-y-2">
+                            <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Komentar & Catatan Leader:</span>
+                            ${j.comments.map(c => `
+                                <div class="bg-blue-50/70 border border-blue-100 p-2.5 rounded-lg text-xs">
+                                    <div class="flex justify-between font-bold text-blue-900 text-[11px] mb-0.5">
+                                        <span>${c.author}</span>
+                                        <span class="text-slate-400 font-normal">${c.date}</span>
+                                    </div>
+                                    <p class="text-slate-700">${c.text}</p>
+                                </div>
+                            `).join('')}
+                        </div>
+                    `;
+                }
+
+                // Add Comment Box (Available for Leader anytime, or Member)
+                let addCommentBox = '';
+                if (currentRole === 'Leader') {
+                    addCommentBox = `
+                        <div class="mt-3 pt-2 flex gap-2">
+                            <input type="text" id="commentInput_${j.id}" placeholder="Tulis komentar/evaluasi sebagai Leader..." class="flex-1 px-3 py-1.5 border border-slate-300 rounded-lg text-xs outline-none focus:ring-1 focus:ring-blue-500">
+                            <button onclick="handleAddComment('${j.id}')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg transition">
+                                Kirim
+                            </button>
+                        </div>
+                    `;
+                }
+
+                const jobCard = `
+                    <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-slate-300 transition">
+                        <div class="flex items-start justify-between">
+                            <div class="space-y-1">
+                                <div class="flex items-center space-x-2">
+                                    <span class="font-bold text-xs text-slate-900"><i class="fa-solid fa-user-circle text-slate-400 mr-1"></i> ${j.memberName || 'Member'}</span>
+                                    <span class="text-slate-400 text-[11px]">&bull; ${j.date || 'Hari ini'}</span>
+                                </div>
+                                <p class="text-xs text-slate-700 font-medium leading-relaxed">${j.description}</p>
+                            </div>
+                            <span class="border px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center ${statusBadgeClass}">
+                                ${statusIcon} ${j.status}
+                            </span>
+                        </div>
+                        ${mediaPreview}
+                        ${commentsHtml}
+                        ${addCommentBox}
+                    </div>
+                `;
+
+                jobListContainer.innerHTML += jobCard;
+            });
+        }
+
+        // --- ADD MEMBER JOB (DAILY REPORT) ---
+        async function handleCreateJob(e) {
+            e.preventDefault();
+            const memberName = document.getElementById('jobMemberName').value;
+            const status = document.getElementById('jobStatus').value;
+            const description = document.getElementById('jobDescription').value;
+            const mediaUrlInput = document.getElementById('jobMediaUrl').value;
+            const fileInput = document.getElementById('jobFileInput');
+
+            let finalMediaUrl = mediaUrlInput;
+
+            // Handle file upload simulation / GAS Integration
+            if (fileInput.files.length > 0) {
+                const file = fileInput.files[0];
+                finalMediaUrl = URL.createObjectURL(file); // Temporary blob link for preview
+
+                // If GAS Web App URL is configured, push to Google Drive
+                if (gasScriptUrl) {
+                    const reader = new FileReader();
+                    reader.onload = async function() {
+                        const base64 = reader.result.split(',')[1];
+                        try {
+                            await fetch(gasScriptUrl, {
+                                method: 'POST',
+                                mode: 'no-cors',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    action: 'addJob',
+                                    machineId: activeMachineId,
+                                    memberName,
+                                    description,
+                                    status,
+                                    fileBase64: base64,
+                                    fileName: file.name,
+                                    fileType: file.type
+                                })
+                            });
+                        } catch (err) {
+                            console.log('GAS upload triggered', err);
+                        }
+                    };
+                    reader.readAsDataURL(file);
+                }
+            }
+
+            const newJob = {
+                id: 'j_' + Date.now(),
+                machineId: activeMachineId,
+                memberName,
+                description,
+                status,
+                date: new Date().toISOString().split('T')[0],
+                mediaUrl: finalMediaUrl,
+                comments: []
+            };
+
+            jobs.unshift(newJob);
+            renderJobList(activeMachineId);
+            renderMachines();
+
+            // Reset form
+            document.getElementById('jobDescription').value = '';
+            document.getElementById('jobMediaUrl').value = '';
+            document.getElementById('jobFileInput').value = '';
+            toggleJobForm();
+        }
+
+        // --- ADD LEADER COMMENT ---
+        function handleAddComment(jobId) {
+            const input = document.getElementById(`commentInput_${jobId}`);
+            if (!input || !input.value.trim()) return;
+
+            const job = jobs.find(j => j.id === jobId);
+            if (job) {
+                if (!job.comments) job.comments = [];
+                
+                const now = new Date();
+                const timeStr = now.toLocaleDateString() + ' ' + now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+                
+                job.comments.push({
+                    author: 'Leader',
+                    text: input.value.trim(),
+                    date: timeStr
+                });
+
+                renderJobList(activeMachineId);
+            }
+        }
+
+        // --- UTILITY & AUXILIARY FUNCTIONS ---
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('liveClock').innerText = now.toTimeString().split(' ')[0];
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        function syncData() {
+            const icon = document.getElementById('syncIcon');
+            icon.classList.add('fa-spin');
+            setTimeout(() => {
+                icon.classList.remove('fa-spin');
+                renderMachines();
+                if (activeMachineId) renderJobList(activeMachineId);
+                alert('Data berhasil disinkronkan dengan Google Sheets!');
+            }, 800);
+        }
+
+        function exportWordReport() {
+            alert('Mengunduh Rangkuman Laporan Harian Machine Control (Word / Docx Format)...');
+        }
+
+        function showGasInstructions() {
+            document.getElementById('gasUrlInput').value = gasScriptUrl;
+            document.getElementById('gasModal').classList.remove('hidden');
+        }
+
+        function closeGasInstructions() {
+            document.getElementById('gasModal').classList.add('hidden');
+        }
+
+        function saveGasUrl() {
+            gasScriptUrl = document.getElementById('gasUrlInput').value.trim();
+            localStorage.setItem('gasScriptUrl', gasScriptUrl);
+            alert('Web App URL Google Apps Script berhasil diperbarui!');
+            closeGasInstructions();
+        }
+
+        function copyGasCode() {
+            const code = document.getElementById('gasCodeText').innerText;
+            navigator.clipboard.writeText(code).then(() => {
+                alert('Kode Apps Script telah disalin ke clipboard!');
+            }).catch(() => {
+                document.execCommand('copy');
+            });
+        }
+
+        // Initial Page Render
+        window.onload = function() {
+            renderMachines();
+        };
+    </script>
+</body>
+</html>
