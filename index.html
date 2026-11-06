@@ -184,11 +184,11 @@
             <div class="bg-slate-900 text-white p-4 sm:p-5 flex justify-between items-start">
                 <div>
                     <div class="flex items-center space-x-2 mb-1">
-                        <span id="panelStatusBadge" class="bg-amber-500 text-slate-950 font-extrabold text-[10px] px-2 py-0.5 rounded uppercase">ON PROGRESS</span>
-                        <span id="panelPlant" class="text-xs text-slate-300 flex items-center"><i class="fa-solid fa-location-dot text-rose-400 mr-1"></i> Plant 1</span>
+                        <span id="panelStatusBadge" class="bg-amber-500 text-slate-950 font-extrabold text-[10px] px-2 py-0.5 rounded uppercase"></span>
+                        <span id="panelPlant" class="text-xs text-slate-300 flex items-center"><i class="fa-solid fa-location-dot text-rose-400 mr-1"></i></span>
                     </div>
-                    <h2 id="panelMachineTitle" class="text-xl sm:text-2xl font-black">Depalletizer Machine</h2>
-                    <p class="text-xs text-slate-400 mt-0.5">Due Date: <span id="panelDueDate" class="text-slate-200 font-semibold">28 Feb 2027</span></p>
+                    <h2 id="panelMachineTitle" class="text-xl sm:text-2xl font-black"></h2>
+                    <p class="text-xs text-slate-400 mt-0.5">Due Date: <span id="panelDueDate" class="text-slate-200 font-semibold">-</span></p>
                 </div>
                 <button onclick="closeMachinePanelModal()" class="text-slate-400 hover:text-white p-1 text-xl"><i class="fa-solid fa-xmark"></i></button>
             </div>
@@ -201,12 +201,12 @@
                     <div class="w-full sm:w-1/2 space-y-2">
                         <div class="flex justify-between text-xs font-bold text-slate-700">
                             <span>Total Completion Progress</span>
-                            <span id="panelCompletionPct" class="text-blue-600 text-lg">80%</span>
+                            <span id="panelCompletionPct" class="text-blue-600 text-lg">0%</span>
                         </div>
                         <div class="w-full bg-slate-200 h-3 rounded-full overflow-hidden">
-                            <div id="panelProgressBar" class="bg-blue-600 h-full transition-all duration-500" style="width: 80%;"></div>
+                            <div id="panelProgressBar" class="bg-blue-600 h-full transition-all duration-500" style="width: 0%;"></div>
                         </div>
-                        <p class="text-[11px] text-slate-500" id="panelTaskStats">3 of 6 Jobs Done</p>
+                        <p class="text-[11px] text-slate-500" id="panelTaskStats">0 of 0 Jobs Done</p>
                     </div>
 
                     <!-- Action: Add Job / Report (Primary for Member) -->
@@ -307,57 +307,9 @@
         // Web App URL Apps Script Anda
         let gasScriptUrl = 'https://script.google.com/macros/s/AKfycbyk7kMuIy3CQr_rkJvyNQq2ksEuwC0Yfp9wOwDlyc0IFL_JNWYh1zQ1MzVKZJAVdkUQvA/exec';
 
-        let machines = [
-            { id: 'm1', name: 'Depalletizer Machine', plant: 'Plant 1', status: 'ON PROGRESS', dueDate: '2027-02-28', formattedDue: '28 Feb 2027' },
-            { id: 'm2', name: 'LONG TAPER LINE 2', plant: 'P2 Unit 1', status: 'ON PROGRESS', dueDate: '2026-12-31', formattedDue: '31 Dec 2026' },
-            { id: 'm3', name: 'REJUVENATE TAPPER 3', plant: 'Plant 5', status: 'ON PROGRESS', dueDate: '2026-12-12', formattedDue: '12 Dec 2026' },
-            { id: 'm4', name: 'Press Bushing AE Sensor', plant: 'Plant 2', status: 'ON PROGRESS', dueDate: '2026-10-17', formattedDue: '17 Oct 2026' },
-            { id: 'm5', name: 'Eye Reamer', plant: 'P2', status: 'ON PROGRESS', dueDate: '2026-10-03', formattedDue: '3 Oct 2026' },
-            { id: 'm6', name: 'Drilling Machine 1, 2, & 3', plant: 'Plant 2', status: 'ON PROGRESS', dueDate: '2026-11-30', formattedDue: '30 Nov 2026' },
-            { id: 'm7', name: 'REJUVENATE TAPPER 4 & 5', plant: 'Plant 5', status: 'ON PROGRESS', dueDate: '2026-10-09', formattedDue: '9 Oct 2026' },
-            { id: 'm8', name: 'ALT Line', plant: 'Plant 1', status: 'ON PROGRESS', dueDate: '2027-02-28', formattedDue: '28 Feb 2027' },
-            { id: 'm9', name: 'Automation Cold Process', plant: 'Plant 5', status: 'ON PROGRESS', dueDate: '2027-01-15', formattedDue: '15 Jan 2027' },
-            { id: 'm10', name: 'Long Taper 8', plant: 'Plant 5', status: 'ON PROGRESS', dueDate: '2026-11-15', formattedDue: '15 Nov 2026' },
-            { id: 'm11', name: 'Long Taper 7', plant: 'Plant 5', status: 'ON PROGRESS', dueDate: '2026-12-01', formattedDue: '1 Dec 2026' }
-        ];
-
-        let jobs = [
-            {
-                id: 'j1',
-                machineId: 'm1',
-                memberName: 'Andi Pratama',
-                description: 'Perbaikan wiring sensor kelistrikan utama dan pengujian motor servo',
-                status: 'Done',
-                date: '2026-11-05',
-                mediaUrl: 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=600&q=80',
-                comments: [
-                    { author: 'Leader', text: 'Pekerjaan rapi, tolong cek juga kekencangan baut dudukan motor.', date: '2026-11-05 16:30' }
-                ]
-            },
-            {
-                id: 'j2',
-                machineId: 'm1',
-                memberName: 'Rian Hidayat',
-                description: 'Pemasangan frame pneumatik bagian sisi kiri',
-                status: 'Done',
-                date: '2026-11-04',
-                mediaUrl: 'https://images.unsplash.com/photo-1581092335397-9583fe92d232?auto=format&fit=crop&w=600&q=80',
-                comments: []
-            },
-            {
-                id: 'j3',
-                machineId: 'm1',
-                memberName: 'Dedi Kurniawan',
-                description: 'Kalibrasi kompresor dan tekanan udara solenoid valve',
-                status: 'Done',
-                date: '2026-11-03',
-                mediaUrl: '',
-                comments: []
-            },
-            { id: 'j4', machineId: 'm1', memberName: 'Andi Pratama', description: 'Pengantian seal cylinder utama yang mengalami kebocoran oli', status: 'Outstanding', date: '2026-11-06', mediaUrl: '', comments: [] },
-            { id: 'j5', machineId: 'm1', memberName: 'Siti Rahma', description: 'Trial run otomatisasi pergerakan arm robot', status: 'Outstanding', date: '2026-11-06', mediaUrl: '', comments: [] },
-            { id: 'j6', machineId: 'm1', memberName: 'Rian Hidayat', description: 'Final touch-up pengecatan cover safety mesin', status: 'Outstanding', date: '2026-11-06', mediaUrl: '', comments: [] }
-        ];
+        // Data mesin dan laporan hanya berasal dari database Google Apps Script.
+        let machines = [];
+        let jobs = [];
 
         // --- RENDER MACHINES GRID ---
         function renderMachines() {
@@ -377,7 +329,7 @@
                 grid.innerHTML = `
                     <div class="col-span-full bg-white p-12 text-center rounded-2xl border border-slate-200">
                         <i class="fa-solid fa-folder-open text-4xl text-slate-300 mb-3"></i>
-                        <p class="text-sm font-semibold text-slate-500">Tidak ada mesin atau proyek yang sesuai filter.</p>
+                        <p class="text-sm font-semibold text-slate-500">Belum ada mesin di database atau tidak ada data yang sesuai filter.</p>
                     </div>
                 `;
                 return;
@@ -391,25 +343,9 @@
                 
                 let completionPct = totalJobs > 0 ? Math.round((doneJobs / totalJobs) * 100) : 0;
                 
-                // Demo defaults for initial layout
-                if (totalJobs === 0) {
-                    if (m.id === 'm1') completionPct = 80;
-                    else if (m.id === 'm2') completionPct = 50;
-                    else if (m.id === 'm3') completionPct = 58;
-                    else if (m.id === 'm4') completionPct = 33;
-                    else if (m.id === 'm5') completionPct = 90;
-                    else if (m.id === 'm6') completionPct = 85;
-                    else if (m.id === 'm7') completionPct = 94;
-                    else if (m.id === 'm8') completionPct = 71;
-                    else if (m.id === 'm9') completionPct = 40;
-                    else if (m.id === 'm10') completionPct = 79;
-                    else if (m.id === 'm11') completionPct = 81;
-                }
-
                 let outstandingText = outstandingCount > 0 ? `${outstandingCount} Outstanding` : (totalJobs === 0 ? '0 Outstanding' : 'All Completed');
                 let doneText = totalJobs > 0 ? `${doneJobs} of ${totalJobs} Done` : '0 Jobs';
 
-                if (m.id === 'm1') { outstandingText = '3 Outstanding'; doneText = '3 of 6 Done'; }
 
                 const leaderActionBtns = currentRole === 'Leader' ? `
                     <div class="flex items-center space-x-1">
@@ -456,7 +392,7 @@
                         </div>
 
                         <div class="flex items-center justify-between pt-3 border-t border-slate-100 text-xs">
-                            <span class="text-slate-400 font-medium text-[11px]">Due: <strong class="text-slate-700 font-bold">${m.formattedDue}</strong></span>
+                            <span class="text-slate-400 font-medium text-[11px]">Due: <strong class="text-slate-700 font-bold">${m.formattedDue || m.dueDate || '-'} </strong></span>
                             <button onclick="openMachinePanel('${m.id}')" class="text-sky-600 hover:text-sky-800 font-bold flex items-center gap-1 hover:underline">
                                 Open Panel <i class="fa-solid fa-arrow-right text-[11px]"></i>
                             </button>
@@ -895,13 +831,49 @@
         }
         setInterval(updateClock, 1000);
 
-        function syncData() {
+        async function syncData() {
             const syncIcon = document.getElementById('syncIcon');
             if (syncIcon) syncIcon.classList.add('fa-spin');
-            setTimeout(() => {
-                if (syncIcon) syncIcon.classList.remove('fa-spin');
+
+            try {
+                if (!gasScriptUrl) {
+                    throw new Error('URL Google Apps Script belum diatur.');
+                }
+
+                // Endpoint GET harus mengembalikan JSON: { machines: [...], jobs: [...] }
+                const response = await fetch(gasScriptUrl + (gasScriptUrl.includes('?') ? '&' : '?') + 'action=getData', {
+                    method: 'GET',
+                    cache: 'no-store'
+                });
+
+                if (!response.ok) {
+                    throw new Error('Server database merespons HTTP ' + response.status);
+                }
+
+                const data = await response.json();
+                if (!data || !Array.isArray(data.machines) || !Array.isArray(data.jobs)) {
+                    throw new Error('Format data dari database tidak sesuai. Diperlukan { machines: [], jobs: [] }.');
+                }
+
+                machines = data.machines;
+                jobs = data.jobs;
                 renderMachines();
-            }, 800);
+
+                if (activeMachineId) {
+                    const activeMachine = machines.find(m => String(m.id) === String(activeMachineId));
+                    if (activeMachine) {
+                        openMachinePanel(activeMachineId);
+                    } else {
+                        closeMachinePanelModal();
+                    }
+                }
+            } catch (error) {
+                console.error('Gagal membaca database:', error);
+                renderMachines();
+                alert('Gagal membaca data database. Pastikan Google Apps Script memiliki fungsi doGet yang mengembalikan JSON machines dan jobs, serta akses Web App diatur ke Anyone.\n\nDetail: ' + error.message);
+            } finally {
+                if (syncIcon) syncIcon.classList.remove('fa-spin');
+            }
         }
 
         function showGasInstructions() {
@@ -916,7 +888,8 @@
         // WINDOW ONLOAD INITIALIZATION
         window.onload = function() {
             updateClock();
-            renderMachines();
+            renderMachines(); // Tampilkan kondisi kosong sambil menunggu database.
+            syncData();       // Ambil seluruh data mesin dan laporan dari database.
         };
     </script>
 </body>
