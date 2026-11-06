@@ -48,42 +48,42 @@
                     <p class="text-xs font-semibold text-slate-500 flex items-center gap-1.5">
                         <span>IAT Applied Technology</span>
                         <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                        <span class="text-emerald-600 font-normal">Online</span>
-                    </p>
+        <!-- MODAL: ADD / EDIT MACHINE (LEADER ONLY) -->
+        <div id="addMachineModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+            <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl transform transition-all border border-slate-100">
+                <div class="flex justify-between items-center pb-3 border-b border-slate-100 mb-4">
+                    <h3 id="machineModalTitle" class="text-lg font-bold text-slate-900 flex items-center gap-2">
+                        <i class="fa-solid fa-industry text-blue-600"></i> Tambah Mesin / Project Utama
+                    </h3>
+                    <button onclick="closeAddMachineModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
                 </div>
-            </div>
-
-            <!-- Right Controls & Sync Indicator -->
-            <div class="flex items-center space-x-2 sm:space-x-3">
-                <!-- Role Switcher (Leader / Member Simulation) -->
-                <div class="bg-slate-100 p-1 rounded-xl flex items-center border border-slate-200 text-xs font-semibold">
-                    <button id="roleLeaderBtn" onclick="switchRole('Leader')" class="px-3 py-1.5 rounded-lg bg-blue-600 text-white shadow-sm transition">
-                        <i class="fa-solid fa-user-shield mr-1"></i> Leader
-                    </button>
-                    <button id="roleMemberBtn" onclick="switchRole('Member')" class="px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition">
-                        <i class="fa-solid fa-user-gear mr-1"></i> Member
-                    </button>
-                </div>
-
-                <button onclick="exportWordReport()" class="hidden md:flex items-center space-x-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3.5 py-2 rounded-lg shadow-sm transition">
-                    <i class="fa-solid fa-camera"></i>
-                    <span class="uppercase tracking-wider">Capture & Word Report</span>
-                </button>
-
-                <button onclick="syncData()" class="flex items-center space-x-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 text-xs font-bold px-3 py-2 rounded-lg transition">
-                    <i id="syncIcon" class="fa-solid fa-rotate"></i>
-                    <span class="hidden sm:inline">SYNC</span>
-                </button>
-
-                <button onclick="showGasInstructions()" class="bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-300 text-xs font-bold px-3 py-2 rounded-lg transition flex items-center gap-1">
-                    <i class="fa-solid fa-database"></i>
-                    <span class="hidden lg:inline">GAS / Setup DB</span>
-                </button>
-
-                <div class="text-xs font-mono bg-slate-100 border border-slate-200 px-2.5 py-1.5 rounded-lg text-slate-600 hidden sm:block">
-                    <i class="fa-regular fa-clock mr-1"></i>
-                    <span id="liveClock">00:00:00</span>
-                </div>
+                <form id="addMachineForm" onsubmit="handleSaveMachine(event)" class="space-y-4">
+                    <input type="hidden" id="editMachineId" value="">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Nama Mesin / Projek *</label>
+                        <input type="text" id="machineName" required placeholder="Contoh: Depalletizer Machine" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Lokasi / Plant *</label>
+                        <input type="text" id="machinePlant" required placeholder="Contoh: Plant 1 atau P2 Unit 1" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Target Tanggal Selesai (Due Date)</label>
+                        <input type="date" id="machineDueDate" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Status Proyek</label>
+                        <select id="machineStatus" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                            <option value="ON PROGRESS">ON PROGRESS</option>
+                            <option value="PENDING">PENDING</option>
+                            <option value="COMPLETED">COMPLETED</option>
+                        </select>
+                    </div>
+                    <div class="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+                        <button type="button" onclick="closeAddMachineModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition">Batal</button>
+                        <button type="submit" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold rounded-lg shadow transition">Simpan Mesin</button>
+                    </div>
+                </form>
             </div>
         </div>
     </header>
@@ -566,12 +566,10 @@ function doPost(e) {
                 const doneJobs = mJobs.filter(j => j.status === 'Done').length;
                 const outstandingCount = mJobs.filter(j => j.status === 'Outstanding').length;
                 
-                // Fallback default numbers if new machine without jobs
                 let completionPct = 0;
                 if (totalJobs > 0) {
                     completionPct = Math.round((doneJobs / totalJobs) * 100);
                 } else {
-                    // Pre-fill simulation fallback to match original UI feel
                     if (m.id === 'm1') completionPct = 80;
                     else if (m.id === 'm2') completionPct = 50;
                     else if (m.id === 'm3') completionPct = 58;
@@ -585,22 +583,25 @@ function doPost(e) {
                     else if (m.id === 'm11') completionPct = 81;
                 }
 
-                // Dynamic calculation for text "X Outstanding", "X of Y Done"
                 let outstandingText = outstandingCount > 0 ? `${outstandingCount} Outstanding` : (totalJobs === 0 ? '0 Outstanding' : 'All Completed');
                 let doneText = totalJobs > 0 ? `${doneJobs} of ${totalJobs} Done` : '0 Jobs';
 
-                // Specific overrides to closely align with initial screenshot visuals
+                // Override untuk tampilan persis screenshot
                 if (m.id === 'm1') { outstandingText = '3 Outstanding'; doneText = '3 of 6 Done'; }
                 if (m.id === 'm2') { outstandingText = '1 Outstanding'; doneText = '0 of 1 Done'; }
                 if (m.id === 'm3') { outstandingText = '3 Outstanding'; doneText = '2 of 5 Done'; }
-                if (m.id === 'm4') { outstandingText = '2 Outstanding'; doneText = '1 of 3 Done'; }
-                if (m.id === 'm5') { outstandingText = '1 Outstanding'; doneText = '4 of 5 Done'; }
-                if (m.id === 'm6') { outstandingText = '4 Outstanding'; doneText = '19 of 23 Done'; }
-                if (m.id === 'm7') { outstandingText = '7 Outstanding'; doneText = '13 of 20 Done'; }
-                if (m.id === 'm8') { outstandingText = '4 Outstanding'; doneText = '1 of 5 Done'; }
-                if (m.id === 'm9') { outstandingText = '6 Outstanding'; doneText = '4 of 10 Done'; }
-                if (m.id === 'm10') { outstandingText = '4 Outstanding'; doneText = '4 of 8 Done'; }
-                if (m.id === 'm11') { outstandingText = '12 Outstanding'; doneText = '34 of 46 Done'; }
+
+                // Tombol Edit / Hapus hanya terlihat jika mode Leader
+                const leaderActionBtns = currentRole === 'Leader' ? `
+                    <div class="flex items-center space-x-1">
+                        <button onclick="editMachine('${m.id}')" title="Edit Mesin" class="p-1.5 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-slate-100 transition">
+                            <i class="fa-solid fa-pen-to-square text-xs"></i>
+                        </button>
+                        <button onclick="deleteMachine('${m.id}')" title="Hapus Mesin" class="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-slate-100 transition">
+                            <i class="fa-solid fa-trash-can text-xs"></i>
+                        </button>
+                    </div>
+                ` : '';
 
                 const cardHtml = `
                     <div class="bg-white rounded-2xl p-5 shadow-sm hover:shadow-md transition border border-slate-200 flex flex-col justify-between relative overflow-hidden card-border-top">
@@ -608,11 +609,14 @@ function doPost(e) {
                             <!-- Header status badges -->
                             <div class="flex items-center justify-between mb-2">
                                 <div class="flex items-center space-x-1.5 text-[11px] font-bold">
-                                    <span class="bg-amber-100 text-amber-800 px-2 py-0.5 rounded uppercase">ON PROGRESS</span>
+                                    <span class="bg-amber-100 text-amber-800 px-2 py-0.5 rounded uppercase">${m.status || 'ON PROGRESS'}</span>
                                     <span class="text-rose-500 font-semibold"><i class="fa-solid fa-location-dot text-[10px]"></i> ${m.plant}</span>
                                 </div>
-                                <div class="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center">
-                                    <i class="fa-solid fa-industry text-sm"></i>
+                                <div class="flex items-center space-x-2">
+                                    ${leaderActionBtns}
+                                    <div class="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center">
+                                        <i class="fa-solid fa-industry text-sm"></i>
+                                    </div>
                                 </div>
                             </div>
 
@@ -687,16 +691,58 @@ function doPost(e) {
                 alert('Hanya Leader yang dapat menambah proyek/mesin baru.');
                 return;
             }
+            document.getElementById('editMachineId').value = '';
+            document.getElementById('machineModalTitle').innerHTML = `<i class="fa-solid fa-industry text-blue-600"></i> Tambah Mesin / Project Utama`;
+            document.getElementById('addMachineForm').reset();
             document.getElementById('addMachineModal').classList.remove('hidden');
         }
 
         function closeAddMachineModal() {
             document.getElementById('addMachineModal').classList.add('hidden');
             document.getElementById('addMachineForm').reset();
+            document.getElementById('editMachineId').value = '';
         }
 
-        function handleCreateMachine(e) {
+        function editMachine(machineId) {
+            if (currentRole !== 'Leader') return;
+            const m = machines.find(item => item.id === machineId);
+            if (!m) return;
+
+            document.getElementById('editMachineId').value = m.id;
+            document.getElementById('machineName').value = m.name;
+            document.getElementById('machinePlant').value = m.plant;
+            document.getElementById('machineStatus').value = m.status || 'ON PROGRESS';
+            document.getElementById('machineDueDate').value = m.dueDate || '';
+
+            document.getElementById('machineModalTitle').innerHTML = `<i class="fa-solid fa-pen-to-square text-blue-600"></i> Edit Mesin / Project`;
+            document.getElementById('addMachineModal').classList.remove('hidden');
+        }
+
+        function deleteMachine(machineId) {
+            if (currentRole !== 'Leader') return;
+            const m = machines.find(item => item.id === machineId);
+            if (!m) return;
+
+            if (confirm(`Apakah Anda yakin ingin menghapus project "${m.name}"? Semua laporan terkait mesin ini juga akan terhapus.`)) {
+                machines = machines.filter(item => item.id !== machineId);
+                jobs = jobs.filter(j => j.machineId !== machineId);
+                renderMachines();
+
+                // Call GAS if linked
+                if (gasScriptUrl) {
+                    fetch(gasScriptUrl, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'deleteMachine', machineId })
+                    }).catch(err => console.log(err));
+                }
+            }
+        }
+
+        function handleSaveMachine(e) {
             e.preventDefault();
+            const editId = document.getElementById('editMachineId').value;
             const name = document.getElementById('machineName').value;
             const plant = document.getElementById('machinePlant').value;
             const dueDateRaw = document.getElementById('machineDueDate').value;
@@ -706,16 +752,57 @@ function doPost(e) {
             const options = { day: 'numeric', month: 'short', year: 'numeric' };
             const formattedDue = dateObj.toLocaleDateString('en-GB', options);
 
-            const newMachine = {
-                id: 'm_' + Date.now(),
-                name,
-                plant,
-                status,
-                dueDate: dueDateRaw,
-                formattedDue
-            };
+            if (editId) {
+                // EDIT EXISTING MACHINE
+                const mIndex = machines.findIndex(m => m.id === editId);
+                if (mIndex !== -1) {
+                    machines[mIndex].name = name;
+                    machines[mIndex].plant = plant;
+                    machines[mIndex].status = status;
+                    machines[mIndex].dueDate = dueDateRaw;
+                    machines[mIndex].formattedDue = formattedDue;
 
-            machines.unshift(newMachine);
+                    if (gasScriptUrl) {
+                        fetch(gasScriptUrl, {
+                            method: 'POST',
+                            mode: 'no-cors',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                action: 'updateMachine',
+                                machineId: editId,
+                                name, plant, status, dueDate: dueDateRaw
+                            })
+                        }).catch(err => console.log(err));
+                    }
+                }
+            } else {
+                // ADD NEW MACHINE
+                const newMachineId = 'm_' + Date.now();
+                const newMachine = {
+                    id: newMachineId,
+                    name,
+                    plant,
+                    status,
+                    dueDate: dueDateRaw,
+                    formattedDue
+                };
+
+                machines.unshift(newMachine);
+
+                if (gasScriptUrl) {
+                    fetch(gasScriptUrl, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            action: 'addMachine',
+                            machineId: newMachineId,
+                            name, plant, status, dueDate: dueDateRaw
+                        })
+                    }).catch(err => console.log(err));
+                }
+            }
+
             renderMachines();
             closeAddMachineModal();
         }
@@ -832,9 +919,14 @@ function doPost(e) {
                                 </div>
                                 <p class="text-xs text-slate-700 font-medium leading-relaxed">${j.description}</p>
                             </div>
-                            <span class="border px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center ${statusBadgeClass}">
-                                ${statusIcon} ${j.status}
-                            </span>
+                            <div class="flex items-center space-x-2">
+                                <span class="border px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center ${statusBadgeClass}">
+                                    ${statusIcon} ${j.status}
+                                </span>
+                                <button onclick="deleteJob('${j.id}')" title="Hapus Laporan" class="text-slate-400 hover:text-rose-600 p-1 transition">
+                                    <i class="fa-solid fa-trash-can text-xs"></i>
+                                </button>
+                            </div>
                         </div>
                         ${mediaPreview}
                         ${commentsHtml}
@@ -896,21 +988,21 @@ function doPost(e) {
                 machineId: activeMachineId,
                 memberName,
                 description,
-                status,
-                date: new Date().toISOString().split('T')[0],
-                mediaUrl: finalMediaUrl,
-                comments: []
-            };
+        function deleteJob(jobId) {
+            if (confirm('Hapus laporan harian pekerjaan ini?')) {
+                jobs = jobs.filter(j => j.id !== jobId);
+                renderJobList(activeMachineId);
+                renderMachines();
 
-            jobs.unshift(newJob);
-            renderJobList(activeMachineId);
-            renderMachines();
-
-            // Reset form
-            document.getElementById('jobDescription').value = '';
-            document.getElementById('jobMediaUrl').value = '';
-            document.getElementById('jobFileInput').value = '';
-            toggleJobForm();
+                if (gasScriptUrl) {
+                    fetch(gasScriptUrl, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'deleteJob', jobId })
+                    }).catch(err => console.log(err));
+                }
+            }
         }
 
         // --- ADD LEADER COMMENT ---
