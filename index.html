@@ -362,7 +362,7 @@ function doPost(e) {
         
         // Web App URL Google Apps Script Anda dipasang secara langsung (Hardcoded)
         // ganti nilai di bawah ini jika Anda melakukan re-deploy Web App di Apps Script
-        let gasScriptUrl = 'https://script.google.com/macros/s/AKfycbxGHxCdu8cRBZCj5J4rnbK2RT9NQCNhR4MKFa1637c9NyQKkbVsp_JQiEXI78IMV91yNQ/exec';
+        let gasScriptUrl = 'https://script.google.com/macros/s/AKfycbxYOUR_DEPLOYED_SCRIPT_ID_HERE/exec';
 
         // Initial Data Structure mirroring the provided screenshot
         let machines = [
@@ -983,11 +983,32 @@ function doPost(e) {
                 }
             }
 
+            const now = new Date();
+            const dateStr = now.toISOString().split('T')[0];
+
             const newJob = {
                 id: 'j_' + Date.now(),
                 machineId: activeMachineId,
                 memberName,
                 description,
+                status,
+                date: dateStr,
+                mediaUrl: finalMediaUrl,
+                comments: []
+            };
+
+            jobs.unshift(newJob);
+
+            // Reset form & reload UI
+            document.getElementById('jobDescription').value = '';
+            document.getElementById('jobMediaUrl').value = '';
+            document.getElementById('jobFileInput').value = '';
+            toggleJobForm();
+
+            renderJobList(activeMachineId);
+            renderMachines();
+        }
+
         function deleteJob(jobId) {
             if (confirm('Hapus laporan harian pekerjaan ini?')) {
                 jobs = jobs.filter(j => j.id !== jobId);
