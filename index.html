@@ -57,8 +57,8 @@
             <div class="flex items-center space-x-2 sm:space-x-3">
                 <!-- Role Switcher -->
                 <div class="bg-slate-100 p-1 rounded-xl border border-slate-200 flex text-xs font-semibold">
-                    <button id="roleLeaderBtn" onclick="switchRole('Leader')" class="px-3 py-1.5 rounded-lg bg-blue-600 text-white shadow-sm transition font-bold">Leader</button>
-                    <button id="roleMemberBtn" onclick="switchRole('Member')" class="px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition font-normal">Member</button>
+                    <button id="roleLeaderBtn" onclick="switchRole('Leader')" class="px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition font-normal">Leader</button>
+                    <button id="roleMemberBtn" onclick="switchRole('Member')" class="px-3 py-1.5 rounded-lg bg-emerald-600 text-white shadow-sm transition font-bold">Member</button>
                 </div>
 
                 <!-- Sync Button -->
@@ -88,8 +88,8 @@
         <!-- Banner Alert Role Status -->
         <div id="roleBadgeNotification" class="mb-6 p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-between text-xs sm:text-sm text-blue-900 shadow-sm">
             <div class="flex items-center space-x-2">
-                <span class="bg-blue-600 text-white px-2 py-0.5 rounded font-bold uppercase text-xs" id="currentRoleBadge">Leader Mode</span>
-                <span id="roleDescription">Anda memiliki hak akses untuk **Membuat/Mengedit Machine** dan memberikan **Komentar/Evaluasi** pada laporan member.</span>
+                <span class="bg-blue-600 text-white px-2 py-0.5 rounded font-bold uppercase text-xs" id="currentRoleBadge">Member Mode</span>
+                <span id="roleDescription">Anda dalam mode Member: Fokus mengisi laporan harian pekerjaan.</span>
             </div>
             <span class="text-slate-400 hover:text-slate-600 cursor-pointer text-xs" onclick="this.parentElement.style.display='none'"><i class="fa-solid fa-xmark text-lg"></i></span>
         </div>
@@ -301,7 +301,7 @@
     <!-- JAVASCRIPT LOGIC -->
     <script>
         // --- INITIAL STATE ---
-        let currentRole = 'Leader';
+        let currentRole = 'Member';
         let activeMachineId = null;
         
         // Web App URL Apps Script Anda
@@ -312,6 +312,141 @@
         let machines = [];
         let jobs = [];
 
+        // Cache lokal: data terakhir tetap tampil saat koneksi terputus.
+        // Outbox memakai IndexedDB agar antrean termasuk foto/video tidak membebani localStorage.
+        const LOCAL_CACHE_KEY = 'pmc_cache_v2';
+        const OUTBOX_DB_NAME = 'pmc_outbox_v2';
+        const OUTBOX_STORE = 'actions';
+        let outboxDbPromise = null;
+        let isSendingOutbox = false;
+
+        function saveLocalCache() {
+            try {
+                localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify({
+                    machines, jobs, savedAt: new Date().toISOString()
+                }));
+                updateSyncStatus();
+            } catch (err) { console.warn('Cache lokal tidak dapat disimpan:', err); }
+        }
+
+        function loadLocalCache() {
+            try {
+                const raw = localStorage.getItem(LOCAL_CACHE_KEY);
+                if (!raw) return;
+                const cached = JSON.parse(raw);
+                if (Array.isArray(cached.machines)) machines = cached.machines;
+                if (Array.isArray(cached.jobs)) jobs = cached.jobs;
+            } catch (err) { console.warn('Cache lokal rusak:', err); }
+        }
+
+        function openOutboxDb() {
+            if (outboxDbPromise) return outboxDbPromise;
+            outboxDbPromise = new Promise((resolve, reject) => {
+                const request = indexedDB.open(OUTBOX_DB_NAME, 1);
+                request.onupgradeneeded = () => {
+                    const db = request.result;
+                    if (!db.objectStoreNames.contains(OUTBOX_STORE)) {
+                        const store = db.createObjectStore(OUTBOX_STORE, { keyPath: 'requestId' });
+                        store.createIndex('createdAt', 'createdAt', { unique: false });
+                    }
+                };
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error);
+            });
+            return outboxDbPromise;
+        }
+
+        async function outboxPut(item) {
+            const db = await openOutboxDb();
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(OUTBOX_STORE, 'readwrite');
+                tx.objectStore(OUTBOX_STORE).put(item);
+                tx.oncomplete = resolve; tx.onerror = () => reject(tx.error);
+            });
+        }
+
+        async function outboxAll() {
+            const db = await openOutboxDb();
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(OUTBOX_STORE, 'readonly');
+                const req = tx.objectStore(OUTBOX_STORE).getAll();
+                req.onsuccess = () => resolve((req.result || []).sort((a,b) => a.createdAt - b.createdAt));
+                req.onerror = () => reject(req.error);
+            });
+        }
+
+        async function outboxDelete(requestId) {
+            const db = await openOutboxDb();
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(OUTBOX_STORE, 'readwrite');
+                tx.objectStore(OUTBOX_STORE).delete(requestId);
+                tx.oncomplete = resolve; tx.onerror = () => reject(tx.error);
+            });
+        }
+
+        async function reconcileOutbox(processedIds) {
+            const ids = new Set(processedIds || []);
+            if (!ids.size) return;
+            const pending = await outboxAll();
+            for (const item of pending) if (ids.has(item.requestId)) await outboxDelete(item.requestId);
+        }
+
+        async function updateSyncStatus() {
+            const pending = await outboxAll().catch(() => []);
+            const dot = document.querySelector('header .text-emerald-600');
+            if (dot) {
+                dot.textContent = pending.length ? `Online • ${pending.length} antrean` : (navigator.onLine ? 'Online' : 'Offline');
+                dot.className = pending.length ? 'text-amber-600' : (navigator.onLine ? 'text-emerald-600' : 'text-rose-600');
+            }
+        }
+
+        // Semua aksi lokal dicatat dahulu, baru dikirim berurutan ke server.
+        async function queueAction(payload) {
+            const action = {
+                ...payload,
+                requestId: payload.requestId || ('req_' + Date.now() + '_' + Math.random().toString(36).slice(2)),
+                clientSubmittedAt: new Date().toISOString(),
+                actorRole: currentRole,
+                actorName: payload.actorName || (currentRole === 'Leader' ? 'Leader' : (payload.memberName || 'Member')),
+                createdAt: Date.now()
+            };
+            await outboxPut(action);
+            updateSyncStatus();
+            pumpOutbox();
+            return action.requestId;
+        }
+
+        async function pumpOutbox() {
+            if (isSendingOutbox || !navigator.onLine) return;
+            isSendingOutbox = true;
+            try {
+                const pending = await outboxAll();
+                for (const item of pending) {
+                    if (item.sentAt && Date.now() - item.sentAt < 20000) continue;
+                    try {
+                        // no-cors tidak memberi akses ke respons server. Karena itu aksi tetap
+                        // disimpan sampai getData mengonfirmasi requestId tercatat di Transaction_Log.
+                        await fetch(gasScriptUrl, {
+                            method: 'POST', mode: 'no-cors',
+                            headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+                            body: JSON.stringify(item)
+                        });
+                        item.sentAt = Date.now();
+                        await outboxPut(item);
+                    } catch (err) {
+                        console.warn('Aksi tetap di antrean lokal dan akan dicoba ulang:', err);
+                        break;
+                    }
+                }
+            } finally {
+                isSendingOutbox = false;
+                updateSyncStatus();
+            }
+        }
+
+        window.addEventListener('online', () => { pumpOutbox(); syncData(); });
+        window.addEventListener('offline', updateSyncStatus);
+
         // --- RENDER MACHINES GRID ---
         function renderMachines() {
             const grid = document.getElementById('machineGrid');
@@ -321,7 +456,7 @@
             grid.innerHTML = '';
 
             const filtered = machines.filter(m => {
-                const matchSearch = m.name.toLowerCase().includes(search) || m.plant.toLowerCase().includes(search);
+                const matchSearch = String(m.name || '').toLowerCase().includes(search) || String(m.plant || '').toLowerCase().includes(search);
                 const matchPlant = plantFilter === 'ALL' || m.plant === plantFilter;
                 return matchSearch && matchPlant;
             });
@@ -420,12 +555,15 @@
                 roleBadge.className = "bg-blue-600 text-white px-2 py-0.5 rounded font-bold uppercase text-xs";
                 roleDesc.innerHTML = "Anda memiliki hak akses untuk <b>Membuat/Mengedit Machine</b> dan memberikan <b>Komentar/Evaluasi</b> pada laporan member.";
                 addMachineBtn.disabled = false;
+                addMachineBtn.classList.remove("opacity-50", "cursor-not-allowed");
             } else {
                 memberBtn.className = "px-3 py-1.5 rounded-lg bg-emerald-600 text-white shadow-sm transition font-bold";
                 leaderBtn.className = "px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition font-normal";
                 roleBadge.innerText = "Member Mode";
                 roleBadge.className = "bg-emerald-600 text-white px-2 py-0.5 rounded font-bold uppercase text-xs";
                 roleDesc.innerHTML = "Anda dalam mode Member: Fokus mengisi <b>Laporan Harian Pekerjaan</b> dan mengunggah bukti <b>Foto/Video</b>.";
+                addMachineBtn.disabled = true;
+                addMachineBtn.classList.add("opacity-50", "cursor-not-allowed");
             }
 
             renderMachines();
@@ -467,90 +605,37 @@
             document.getElementById('addMachineModal').classList.remove('hidden');
         }
 
-        function deleteMachine(machineId) {
+        async function deleteMachine(machineId) {
             if (currentRole !== 'Leader') return;
             const m = machines.find(item => item.id === machineId);
             if (!m) return;
-
             if (confirm(`Apakah Anda yakin ingin menghapus project "${m.name}"?`)) {
                 machines = machines.filter(item => item.id !== machineId);
                 jobs = jobs.filter(j => j.machineId !== machineId);
-                renderMachines();
-
-                if (gasScriptUrl) {
-                    fetch(gasScriptUrl, {
-                        method: 'POST',
-                        mode: 'no-cors',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'deleteMachine', machineId })
-                    }).catch(err => console.log(err));
-                }
+                saveLocalCache(); renderMachines();
+                await queueAction({ action: 'deleteMachine', machineId });
             }
         }
 
-        function handleSaveMachine(e) {
+        async function handleSaveMachine(e) {
             e.preventDefault();
+            if (currentRole !== 'Leader') return;
             const editId = document.getElementById('editMachineId').value;
-            const name = document.getElementById('machineName').value;
-            const plant = document.getElementById('machinePlant').value;
+            const name = document.getElementById('machineName').value.trim();
+            const plant = document.getElementById('machinePlant').value.trim();
             const dueDateRaw = document.getElementById('machineDueDate').value;
             const status = document.getElementById('machineStatus').value;
-
-            const dateObj = new Date(dueDateRaw);
-            const options = { day: 'numeric', month: 'short', year: 'numeric' };
-            const formattedDue = dateObj.toLocaleDateString('en-GB', options);
-
+            const formattedDue = dueDateRaw ? new Date(dueDateRaw + 'T00:00:00').toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'}) : '';
             if (editId) {
-                const mIndex = machines.findIndex(m => m.id === editId);
-                if (mIndex !== -1) {
-                    machines[mIndex].name = name;
-                    machines[mIndex].plant = plant;
-                    machines[mIndex].status = status;
-                    machines[mIndex].dueDate = dueDateRaw;
-                    machines[mIndex].formattedDue = formattedDue;
-
-                    if (gasScriptUrl) {
-                        fetch(gasScriptUrl, {
-                            method: 'POST',
-                            mode: 'no-cors',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                action: 'updateMachine',
-                                machineId: editId,
-                                name, plant, status, dueDate: dueDateRaw
-                            })
-                        }).catch(err => console.log(err));
-                    }
-                }
+                const m = machines.find(item => item.id === editId);
+                if (m) Object.assign(m, { name, plant, status, dueDate: dueDateRaw, formattedDue });
+                await queueAction({ action:'updateMachine', machineId:editId, name, plant, status, dueDate:dueDateRaw });
             } else {
-                const newMachineId = 'm_' + Date.now();
-                const newMachine = {
-                    id: newMachineId,
-                    name,
-                    plant,
-                    status,
-                    dueDate: dueDateRaw,
-                    formattedDue
-                };
-
-                machines.unshift(newMachine);
-
-                if (gasScriptUrl) {
-                    fetch(gasScriptUrl, {
-                        method: 'POST',
-                        mode: 'no-cors',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            action: 'addMachine',
-                            machineId: newMachineId,
-                            name, plant, status, dueDate: dueDateRaw
-                        })
-                    }).catch(err => console.log(err));
-                }
+                const machineId = 'm_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
+                machines.unshift({ id:machineId, name, plant, status, dueDate:dueDateRaw, formattedDue });
+                await queueAction({ action:'addMachine', machineId, name, plant, status, dueDate:dueDateRaw });
             }
-
-            renderMachines();
-            closeAddMachineModal();
+            saveLocalCache(); renderMachines(); closeAddMachineModal();
         }
 
         // --- MACHINE PANEL & JOBS ---
@@ -682,141 +767,63 @@
         }
 
         // --- ADD MEMBER JOB ---
-        function handleCreateJob(e) {
+        async function handleCreateJob(e) {
             e.preventDefault();
-            const memberName = document.getElementById('jobMemberName').value;
+            const memberName = document.getElementById('jobMemberName').value.trim();
             const status = document.getElementById('jobStatus').value;
-            const description = document.getElementById('jobDescription').value;
-            const mediaUrlInput = document.getElementById('jobMediaUrl').value;
+            const description = document.getElementById('jobDescription').value.trim();
+            const mediaUrlInput = document.getElementById('jobMediaUrl').value.trim();
             const fileInput = document.getElementById('jobFileInput');
-
-            let finalMediaUrl = mediaUrlInput;
-            const jobId = 'j_' + Date.now();
+            const jobId = 'j_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
             const now = new Date();
-            const dateStr = now.toISOString().split('T')[0];
-
+            const dateStr = now.toLocaleDateString('en-CA');
+            const newJob = { id:jobId, machineId:activeMachineId, memberName, description, status, date:dateStr, mediaUrl:mediaUrlInput, comments:[], syncPending:true };
+            const payload = { action:'addJob', jobId, machineId:activeMachineId, memberName, description, status, mediaUrl:mediaUrlInput };
             if (fileInput.files.length > 0) {
                 const file = fileInput.files[0];
-                finalMediaUrl = URL.createObjectURL(file);
-
-                if (gasScriptUrl) {
-                    const reader = new FileReader();
-                    reader.onload = async function() {
-                        const base64 = reader.result.split(',')[1];
-                        try {
-                            await fetch(gasScriptUrl, {
-                                method: 'POST',
-                                mode: 'no-cors',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                    action: 'addJob',
-                                    jobId: jobId,
-                                    machineId: activeMachineId,
-                                    memberName,
-                                    description,
-                                    status,
-                                    fileBase64: base64,
-                                    fileName: file.name,
-                                    fileType: file.type
-                                })
-                            });
-                        } catch (err) {
-                            console.log('GAS upload error', err);
-                        }
-                    };
-                    reader.readAsDataURL(file);
-                }
-            } else if (gasScriptUrl) {
-                fetch(gasScriptUrl, {
-                    method: 'POST',
-                    mode: 'no-cors',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'addJob',
-                        jobId: jobId,
-                        machineId: activeMachineId,
-                        memberName,
-                        description,
-                        status,
-                        mediaUrl: mediaUrlInput
-                    })
-                }).catch(err => console.log(err));
+                try {
+                    const base64 = await new Promise((resolve,reject) => {
+                        const reader = new FileReader();
+                        reader.onload = () => resolve(reader.result.split(',')[1]);
+                        reader.onerror = () => reject(reader.error);
+                        reader.readAsDataURL(file);
+                    });
+                    payload.fileBase64 = base64; payload.fileName = file.name; payload.fileType = file.type;
+                    newJob.mediaUrl = '';
+                } catch (err) { alert('File gagal dibaca: ' + err.message); return; }
             }
-
-            const newJob = {
-                id: jobId,
-                machineId: activeMachineId,
-                memberName,
-                description,
-                status,
-                date: dateStr,
-                mediaUrl: finalMediaUrl,
-                comments: []
-            };
-
-            jobs.unshift(newJob);
-
+            jobs.unshift(newJob); saveLocalCache();
+            await queueAction(payload);
             document.getElementById('jobDescription').value = '';
             document.getElementById('jobMediaUrl').value = '';
             document.getElementById('jobFileInput').value = '';
-            toggleJobForm();
-
-            renderJobList(activeMachineId);
-            renderMachines();
+            toggleJobForm(); renderJobList(activeMachineId); renderMachines();
+            alert(navigator.onLine ? 'Laporan disimpan di perangkat dan masuk antrean pengiriman.' : 'Laporan tersimpan lokal. Akan dikirim otomatis saat internet tersedia.');
         }
 
-        function deleteJob(jobId) {
+        async function deleteJob(jobId) {
+            if (currentRole !== 'Leader') return;
             if (confirm('Hapus laporan harian pekerjaan ini?')) {
                 jobs = jobs.filter(j => j.id !== jobId);
-                renderJobList(activeMachineId);
-                renderMachines();
-
-                if (gasScriptUrl) {
-                    fetch(gasScriptUrl, {
-                        method: 'POST',
-                        mode: 'no-cors',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'deleteJob', jobId })
-                    }).catch(err => console.log(err));
-                }
+                saveLocalCache(); renderJobList(activeMachineId); renderMachines();
+                await queueAction({ action:'deleteJob', jobId });
             }
         }
 
         // --- LEADER COMMENTS ---
-        function handleAddComment(jobId) {
+        async function handleAddComment(jobId) {
+            if (currentRole !== 'Leader') return;
             const input = document.getElementById(`commentInput_${jobId}`);
             if (!input || !input.value.trim()) return;
-
             const job = jobs.find(j => j.id === jobId);
-            if (job) {
-                if (!job.comments) job.comments = [];
-                
-                const now = new Date();
-                const timeStr = now.toLocaleDateString() + ' ' + String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
-                const commentText = input.value.trim();
-
-                job.comments.push({
-                    author: 'Leader',
-                    text: commentText,
-                    date: timeStr
-                });
-
-                if (gasScriptUrl) {
-                    fetch(gasScriptUrl, {
-                        method: 'POST',
-                        mode: 'no-cors',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            action: 'addComment',
-                            jobId: jobId,
-                            author: 'Leader',
-                            commentText: commentText
-                        })
-                    }).catch(err => console.log(err));
-                }
-
-                renderJobList(activeMachineId);
-            }
+            if (!job) return;
+            const commentText = input.value.trim();
+            const timeStr = new Date().toLocaleString('id-ID');
+            if (!job.comments) job.comments = [];
+            job.comments.push({ author:'Leader', text:commentText, date:timeStr });
+            saveLocalCache();
+            await queueAction({ action:'addComment', jobId, author:'Leader', commentText });
+            renderJobList(activeMachineId);
         }
 
         // --- UTILITY ---
@@ -832,47 +839,56 @@
         }
         setInterval(updateClock, 1000);
 
+        async function mergePendingActionsIntoView() {
+            const pending = await outboxAll().catch(() => []);
+            pending.forEach(a => {
+                if (a.action === 'addJob' && !jobs.some(j => j.id === a.jobId)) {
+                    jobs.unshift({ id:a.jobId, machineId:a.machineId, memberName:a.memberName, description:a.description, status:a.status || 'Outstanding', date:a.clientSubmittedAt ? a.clientSubmittedAt.slice(0,10) : '', mediaUrl:a.mediaUrl || '', comments:[], syncPending:true });
+                } else if (a.action === 'addMachine' && !machines.some(m => m.id === a.machineId)) {
+                    machines.unshift({ id:a.machineId, name:a.name, plant:a.plant, status:a.status, dueDate:a.dueDate, formattedDue:a.dueDate });
+                } else if (a.action === 'updateMachine') {
+                    const m = machines.find(x => x.id === a.machineId); if (m) Object.assign(m,{name:a.name,plant:a.plant,status:a.status,dueDate:a.dueDate,formattedDue:a.dueDate});
+                } else if (a.action === 'deleteMachine') {
+                    machines = machines.filter(m => m.id !== a.machineId); jobs = jobs.filter(j => j.machineId !== a.machineId);
+                } else if (a.action === 'deleteJob') jobs = jobs.filter(j => j.id !== a.jobId);
+                else if (a.action === 'addComment') {
+                    const j = jobs.find(x => x.id === a.jobId); if (j) { j.comments = j.comments || []; if (!j.comments.some(c => c.text === a.commentText && c.author === (a.author || 'Leader'))) j.comments.push({author:a.author || 'Leader',text:a.commentText,date:'Menunggu sinkronisasi'}); }
+                }
+            });
+        }
+
         async function syncData() {
             const syncIcon = document.getElementById('syncIcon');
             if (syncIcon) syncIcon.classList.add('fa-spin');
-
             try {
-                if (!gasScriptUrl) {
-                    throw new Error('URL Google Apps Script belum diatur.');
-                }
-
-                // Endpoint GET harus mengembalikan JSON: { machines: [...], jobs: [...] }
-                const response = await fetch(gasScriptUrl + (gasScriptUrl.includes('?') ? '&' : '?') + 'action=getData', {
-                    method: 'GET',
-                    cache: 'no-store'
+                await pumpOutbox();
+                const response = await fetch(gasScriptUrl + (gasScriptUrl.includes('?') ? '&' : '?') + 'action=getData&_=' + Date.now(), {
+                    method:'GET', cache:'no-store', redirect:'follow'
                 });
-
-                if (!response.ok) {
-                    throw new Error('Server database merespons HTTP ' + response.status);
+                const body = await response.text();
+                let data;
+                try { data = JSON.parse(body); }
+                catch (_) { throw new Error('Server tidak mengirim JSON. Periksa deployment Web App GAS. Respons: ' + body.slice(0,160)); }
+                if (!data || data.status === 'error' || !Array.isArray(data.machines) || !Array.isArray(data.jobs)) {
+                    throw new Error((data && (data.error || data.message)) || 'Format database tidak sesuai.');
                 }
-
-               const data = await response.json();
-                
-                if (!data || !Array.isArray(data.machines) || !Array.isArray(data.jobs)) {
-                    throw new Error('Format data dari database tidak sesuai. Diperlukan { machines: [], jobs: [] }.');
-                }
-
-                machines = data.machines;
-                jobs = data.jobs;
-                renderMachines();
-
+                // Data server menjadi sumber utama. Perubahan lokal yang belum terkirim tetap dipertahankan
+                // melalui outbox; aksi akan diproses ulang sesuai urutan antrean lokal.
+                await reconcileOutbox(data.processedRequestIds || []);
+                machines = data.machines.map(m => ({...m, id:String(m.id), name:String(m.name || ''), plant:String(m.plant || '')}));
+                jobs = data.jobs.map(j => ({...j, id:String(j.id), machineId:String(j.machineId), comments:Array.isArray(j.comments) ? j.comments : []}));
+                await mergePendingActionsIntoView();
+                saveLocalCache(); renderMachines();
                 if (activeMachineId) {
-                    const activeMachine = machines.find(m => String(m.id) === String(activeMachineId));
-                    if (activeMachine) {
-                        openMachinePanel(activeMachineId);
-                    } else {
-                        closeMachinePanelModal();
-                    }
+                    const active = machines.find(m => String(m.id) === String(activeMachineId));
+                    if (active) openMachinePanel(activeMachineId); else closeMachinePanelModal();
                 }
+                await updateSyncStatus();
             } catch (error) {
-                console.error('Gagal membaca database:', error);
+                console.error('Gagal sinkron database:', error);
                 renderMachines();
-                alert('Gagal membaca data database. Pastikan Google Apps Script memiliki fungsi doGet yang mengembalikan JSON machines dan jobs, serta akses Web App diatur ke Anyone.\n\nDetail: ' + error.message);
+                // Tidak menghapus cache/antrean lokal ketika server tidak tersedia.
+                console.warn('Menggunakan cache lokal jika tersedia. Detail:', error.message);
             } finally {
                 if (syncIcon) syncIcon.classList.remove('fa-spin');
             }
@@ -890,8 +906,14 @@
         // WINDOW ONLOAD INITIALIZATION
         window.onload = function() {
             updateClock();
-            renderMachines(); // Tampilkan kondisi kosong sambil menunggu database.
-            syncData();       // Ambil seluruh data mesin dan laporan dari database.
+            loadLocalCache();
+            switchRole('Member'); // Setiap pembukaan website langsung masuk tampilan Member.
+            renderMachines();
+            updateSyncStatus();
+            pumpOutbox();
+            syncData();
+            // Polling berkala memberi pembaruan hampir realtime untuk semua perangkat.
+            setInterval(() => { if (document.visibilityState === 'visible') syncData(); }, 15000);
         };
     </script>
 </body>
