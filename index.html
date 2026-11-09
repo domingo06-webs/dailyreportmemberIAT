@@ -851,24 +851,8 @@
                     throw new Error('Server database merespons HTTP ' + response.status);
                 }
 
-               // const data = await response.json();
-                const response = await fetch(apiUrl);
-const resultText = await response.text();
-
-console.log("HTTP Status:", response.status);
-console.log("API URL:", response.url);
-console.log("Respons Google Apps Script:", resultText.substring(0, 1000));
-
-let data;
-
-try {
-    data = JSON.parse(resultText);
-} catch (error) {
-    throw new Error(
-        "Respons API bukan JSON. Isi respons: " +
-        resultText.substring(0, 300)
-    );
-}
+               const data = await response.json();
+                
                 if (!data || !Array.isArray(data.machines) || !Array.isArray(data.jobs)) {
                     throw new Error('Format data dari database tidak sesuai. Diperlukan { machines: [], jobs: [] }.');
                 }
