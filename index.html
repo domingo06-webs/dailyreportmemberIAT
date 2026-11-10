@@ -301,7 +301,7 @@
     <!-- JAVASCRIPT LOGIC -->
     <script>
         // --- INITIAL STATE ---
-        let currentRole = 'Leader';
+        let currentRole = 'Member';
         let activeMachineId = null;
         
         // Web App URL Apps Script Anda
@@ -321,7 +321,7 @@
             grid.innerHTML = '';
 
             const filtered = machines.filter(m => {
-                const matchSearch = String(m.name || '').toLowerCase().includes(search) || String(m.plant || '').toLowerCase().includes(search);
+                const matchSearch = m.name.toLowerCase().includes(search) || m.plant.toLowerCase().includes(search);
                 const matchPlant = plantFilter === 'ALL' || m.plant === plantFilter;
                 return matchSearch && matchPlant;
             });
@@ -481,7 +481,7 @@
                     fetch(gasScriptUrl, {
                         method: 'POST',
                         mode: 'no-cors',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                         body: JSON.stringify({ action: 'deleteMachine', machineId })
                     }).catch(err => console.log(err));
                 }
@@ -513,7 +513,7 @@
                         fetch(gasScriptUrl, {
                             method: 'POST',
                             mode: 'no-cors',
-                            headers: { 'Content-Type': 'application/json' },
+                            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                             body: JSON.stringify({
                                 action: 'updateMachine',
                                 machineId: editId,
@@ -539,7 +539,7 @@
                     fetch(gasScriptUrl, {
                         method: 'POST',
                         mode: 'no-cors',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                         body: JSON.stringify({
                             action: 'addMachine',
                             machineId: newMachineId,
@@ -561,7 +561,7 @@
 
             document.getElementById('panelMachineTitle').innerText = machine.name;
             document.getElementById('panelPlant').innerHTML = `<i class="fa-solid fa-location-dot text-rose-400 mr-1"></i> ${machine.plant}`;
-            document.getElementById('panelDueDate').innerText = machine.formattedDue || machine.dueDate || '-';
+            document.getElementById('panelDueDate').innerText = machine.formattedDue;
             document.getElementById('panelStatusBadge').innerText = machine.status;
 
             renderJobList(machineId);
@@ -707,7 +707,7 @@
                             await fetch(gasScriptUrl, {
                                 method: 'POST',
                                 mode: 'no-cors',
-                                headers: { 'Content-Type': 'application/json' },
+                                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                                 body: JSON.stringify({
                                     action: 'addJob',
                                     jobId: jobId,
@@ -730,7 +730,7 @@
                 fetch(gasScriptUrl, {
                     method: 'POST',
                     mode: 'no-cors',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                     body: JSON.stringify({
                         action: 'addJob',
                         jobId: jobId,
@@ -775,7 +775,7 @@
                     fetch(gasScriptUrl, {
                         method: 'POST',
                         mode: 'no-cors',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                         body: JSON.stringify({ action: 'deleteJob', jobId })
                     }).catch(err => console.log(err));
                 }
@@ -805,7 +805,7 @@
                     fetch(gasScriptUrl, {
                         method: 'POST',
                         mode: 'no-cors',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                         body: JSON.stringify({
                             action: 'addComment',
                             jobId: jobId,
@@ -832,80 +832,64 @@
         }
         setInterval(updateClock, 1000);
 
+        // Membaca database lintas domain melalui JSONP (GAS ContentService redirect).
+        function loadDatabaseJSONP() {
+            return new Promise((resolve, reject) => {
+                if (!gasScriptUrl) return reject(new Error('URL Google Apps Script belum diatur.'));
+                const callbackName = 'pmcJsonp_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
+                const script = document.createElement('script');
+                let finished = false;
+                const cleanup = () => {
+                    if (finished) return;
+                    finished = true;
+                    clearTimeout(timer);
+                    script.remove();
+                    try { delete window[callbackName]; } catch (_) { window[callbackName] = undefined; }
+                };
+                window[callbackName] = (data) => { cleanup(); resolve(data); };
+                script.onerror = () => { cleanup(); reject(new Error('Tidak dapat membaca database. Periksa URL deployment dan akses Web App GAS.')); };
+                const timer = setTimeout(() => { cleanup(); reject(new Error('Waktu koneksi database habis.')); }, 20000);
+                const separator = gasScriptUrl.includes('?') ? '&' : '?';
+                script.src = gasScriptUrl + separator + 'action=getData&callback=' + encodeURIComponent(callbackName) + '&_=' + Date.now();
+                document.head.appendChild(script);
+            });
+        }
+
+        // POST memakai text/plain agar browser tidak mengirim preflight OPTIONS ke Apps Script.
+        // mode no-cors membuat respons tidak dapat dibaca, tetapi request tetap dikirim ke doPost.
+
         async function syncData() {
             const syncIcon = document.getElementById('syncIcon');
             if (syncIcon) syncIcon.classList.add('fa-spin');
 
             try {
-                if (!gasScriptUrl) throw new Error('URL Google Apps Script belum diatur.');
-
-                const endpoint = gasScriptUrl.split('?')[0].replace(/\/$/, '');
-                if (!/script\.google\.com\/macros\/s\/.+\/exec$/.test(endpoint)) {
-                    throw new Error('URL Web App tidak valid. Gunakan URL deployment Google Apps Script yang berakhiran /exec.');
+                if (!gasScriptUrl) {
+                    throw new Error('URL Google Apps Script belum diatur.');
                 }
 
-                const requestUrl = endpoint + '?action=getData&_=' + Date.now();
-                const response = await fetch(requestUrl, {
-                    method: 'GET',
-                    cache: 'no-store',
-                    redirect: 'follow',
-                    headers: { 'Accept': 'application/json' }
-                });
-
-                // Baca teks dahulu supaya halaman login/error Google terdeteksi dengan jelas.
-                const responseText = (await response.text()).replace(/^\uFEFF/, '').trim();
-                if (!response.ok) {
-                    throw new Error('HTTP ' + response.status + '. Respons: ' + responseText.slice(0, 250));
+                // JSONP dipakai untuk membaca GAS dari GitHub Pages tanpa kendala CORS/redirect.
+                const data = await loadDatabaseJSONP();
+                
+                if (!data || data.status === 'error' || !Array.isArray(data.machines) || !Array.isArray(data.jobs)) {
+                    throw new Error((data && (data.error || data.message)) || 'Format data dari database tidak sesuai. Diperlukan { machines: [], jobs: [] }.');
                 }
 
-                let data;
-                try {
-                    data = JSON.parse(responseText);
-                } catch (parseError) {
-                    const looksLikeGooglePage = /Google Apps Script|Google\s+App|accounts\.google\.com|<\!doctype html|<html/i.test(responseText);
-                    if (looksLikeGooglePage) {
-                        throw new Error('Google Apps Script mengirim halaman HTML, bukan JSON. Periksa URL deployment, izin akses, versi deployment, dan error pada doGet(e). URL akhir: ' + response.url + '. Awal respons: ' + responseText.slice(0, 350));
-                    }
-                    throw new Error('Respons API bukan JSON valid. Awal respons: ' + responseText.slice(0, 350));
-                }
-
-                if (data && data.error) throw new Error('Apps Script: ' + data.error);
-                if (!data || !Array.isArray(data.machines) || !Array.isArray(data.jobs)) {
-                    throw new Error('Format JSON tidak sesuai. doGet harus mengirim { machines: [], jobs: [] }. Respons: ' + responseText.slice(0, 350));
-                }
-
-                machines = data.machines.map(m => ({
-                    ...m,
-                    id: String(m.id ?? ''),
-                    name: String(m.name ?? ''),
-                    plant: String(m.plant ?? ''),
-                    status: String(m.status ?? 'ON PROGRESS'),
-                    dueDate: m.dueDate ?? '',
-                    formattedDue: m.formattedDue ?? m.dueDate ?? ''
-                })).filter(m => m.id && m.name);
-
-                jobs = data.jobs.map(j => ({
-                    ...j,
-                    id: String(j.id ?? ''),
-                    machineId: String(j.machineId ?? ''),
-                    memberName: String(j.memberName ?? ''),
-                    description: String(j.description ?? ''),
-                    status: String(j.status ?? 'Outstanding'),
-                    comments: Array.isArray(j.comments) ? j.comments : []
-                })).filter(j => j.id && j.machineId);
-
+                machines = data.machines.map(m => ({...m, id:String(m.id), name:m.name || '', plant:m.plant || '', status:m.status || 'ON PROGRESS', dueDate:m.dueDate || ''}));
+                jobs = data.jobs.map(j => ({...j, id:String(j.id), machineId:String(j.machineId), comments:Array.isArray(j.comments) ? j.comments : []}));
                 renderMachines();
+
                 if (activeMachineId) {
                     const activeMachine = machines.find(m => String(m.id) === String(activeMachineId));
-                    if (activeMachine) openMachinePanel(activeMachineId);
-                    else closeMachinePanelModal();
+                    if (activeMachine) {
+                        openMachinePanel(activeMachineId);
+                    } else {
+                        closeMachinePanelModal();
+                    }
                 }
-                console.info('Database berhasil dibaca:', machines.length, 'mesin,', jobs.length, 'laporan.');
             } catch (error) {
                 console.error('Gagal membaca database:', error);
                 renderMachines();
-                alert('Gagal membaca database. Data contoh tidak ditampilkan.\n\n' + error.message +
-                    '\n\nPeriksa deployment Apps Script: Execute as = Me, Who has access = Anyone, lalu gunakan URL /exec versi terbaru.');
+                console.warn('Periksa koneksi database: ' + error.message);
             } finally {
                 if (syncIcon) syncIcon.classList.remove('fa-spin');
             }
@@ -923,8 +907,11 @@
         // WINDOW ONLOAD INITIALIZATION
         window.onload = function() {
             updateClock();
+            switchRole('Member'); // Saat pertama dibuka, langsung tampilkan mode Member.
             renderMachines(); // Tampilkan kondisi kosong sambil menunggu database.
             syncData();       // Ambil seluruh data mesin dan laporan dari database.
+            // Refresh berkala agar perubahan dari perangkat lain ikut terlihat.
+            setInterval(() => { if (document.visibilityState === 'visible') syncData(); }, 30000);
         };
     </script>
 </body>
