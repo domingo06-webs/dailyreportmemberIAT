@@ -873,7 +873,7 @@
                 console.error('Database Sync Error:', error);
                 updateConnectionStatus('error', 'Cek Akses GAS');
                 renderMachines();
-            } font-bold {
+            } finally {
                 if (syncIcon) syncIcon.classList.remove('fa-spin');
             }
         }
